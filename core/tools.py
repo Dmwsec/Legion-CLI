@@ -51,6 +51,7 @@ TOOL_REGISTRY = [
     {'name': 'jadx', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'jadx', 'description': 'Android decompiler'},
     {'name': 'frida', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'frida', 'description': 'Dynamic instrumentation toolkit'},
     {'name': 'mobfs', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'MobSF', 'description': 'Mobile app static/dynamic analyzer'},
+    {'name': 'metasploit', 'category': 'validation', 'risk_level': 'manual', 'command_check': 'msfconsole', 'description': 'Controlled Metasploit validation; exploit modules blocked by default'},
 ]
 
 
