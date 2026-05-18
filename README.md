@@ -281,3 +281,5 @@ Use the Scope Builder in dashboard or CLI to extract scope rules from pasted pro
 - `python3 main.py scope-show hackerone-acme`
 
 The extracted file is saved as `scopes/<program>.yaml`, and `scope-use` copies it to `scope.yaml` for active validation.
+
+made by brownboi-tech/Dmwsec
