@@ -1,7 +1,10 @@
+import ipaddress
 import json
 import os
 import re
+import socket
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from openai import OpenAI
@@ -73,8 +76,37 @@ def analyze_js_content(target: str, content: str, ai_summary: bool = False) -> d
     return {'target': target, 'output': str(out), 'routes': len(routes), 'tokens': len(masked_tokens)}
 
 
+def _validate_public_http_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError('Invalid URL scheme. Only http and https are allowed.')
+    if not parsed.hostname:
+        raise ValueError('Invalid URL: hostname is required.')
+
+    try:
+        addr_info = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80))
+    except socket.gaierror as e:
+        raise ValueError(f'Could not resolve hostname: {parsed.hostname}') from e
+
+    for info in addr_info:
+        ip_str = info[4][0]
+        ip_obj = ipaddress.ip_address(ip_str)
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            raise ValueError('URL resolves to a non-public IP address, which is not allowed.')
+
+    return url
+
+
 def analyze_js_url(target: str, url: str, ai_summary: bool = False) -> dict:
-    content = requests.get(url, timeout=30).text
+    safe_url = _validate_public_http_url(url)
+    content = requests.get(safe_url, timeout=30).text
     return analyze_js_content(target, content, ai_summary=ai_summary)
 
 
