@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,6 +39,108 @@ def evidence(target: str):
 @app.get('/api/findings/{target}')
 def findings(target: str):
     f = Path('evidence') / target / 'ai-analysis'; return {'findings': sorted([p.name for p in f.glob('*.json')]) if f.exists() else []}
+
+@app.get('/api/agents/status')
+def agents_status():
+    return [
+        {'name': 'Scope Guard', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Recon Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'HTTP Probe Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'JS Intelligence Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'API Mapper Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Auth Diff Agent', 'status': 'idle', 'risk': 'approval'},
+        {'name': 'IDOR Hunter Agent', 'status': 'idle', 'risk': 'approval'},
+        {'name': 'Nuclei Safe Agent', 'status': 'idle', 'risk': 'approval'},
+        {'name': 'Metasploit Agent', 'status': 'manual', 'risk': 'manual'},
+        {'name': 'Race Condition Agent', 'status': 'manual', 'risk': 'manual'},
+        {'name': 'Cloud & Secrets Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Evidence Collector', 'status': 'active', 'risk': 'safe'},
+        {'name': 'False Positive Killer', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Risk Ranker Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Report Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Retest Agent', 'status': 'idle', 'risk': 'safe'},
+    ]
+
+@app.get('/api/dashboard/{target}')
+def dashboard_summary(target: str):
+    base = Path('evidence') / target
+    files = [p for p in base.rglob('*') if p.is_file()] if base.exists() else []
+    evidence_items = len(files)
+
+    urls_file = base / 'recon' / 'urls.txt'
+    urls = []
+    if urls_file.exists():
+        try:
+            urls = [ln.strip() for ln in urls_file.read_text(errors='ignore').splitlines() if ln.strip()]
+        except Exception:
+            urls = []
+
+    ai_dir = base / 'ai-analysis'
+    finding_files = sorted(ai_dir.glob('*.json')) if ai_dir.exists() else []
+    severity_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+    top_findings = []
+    recent_findings = []
+    for fp in finding_files:
+        item = {'name': fp.name, 'severity': 'info'}
+        try:
+            data = json.loads(fp.read_text(errors='ignore'))
+            if isinstance(data, dict):
+                sev = str(data.get('severity', 'info')).lower()
+                if sev not in severity_counts:
+                    sev = 'info'
+                item = {
+                    'name': data.get('title') or data.get('name') or fp.stem,
+                    'severity': sev,
+                    'category': data.get('category', ''),
+                    'file': fp.name,
+                }
+            elif isinstance(data, list):
+                item['name'] = fp.stem
+        except Exception:
+            pass
+        severity_counts[item['severity']] += 1
+        recent_findings.append(item)
+
+    sev_weights = {'critical': 5, 'high': 4, 'medium': 3, 'low': 2, 'info': 1}
+    top_findings = sorted(recent_findings, key=lambda x: sev_weights.get(x.get('severity', 'info'), 1), reverse=True)[:5]
+    recent_findings = list(reversed(recent_findings))[:5]
+
+    tooling_status = get_tools_with_status()
+    agents_online = sum(1 for t in tooling_status if t.get('installed'))
+    risk_score = min(100, severity_counts['critical'] * 25 + severity_counts['high'] * 12 + severity_counts['medium'] * 6 + severity_counts['low'] * 2)
+
+    live_requests = []
+    recent_activity = []
+    attack_surface = urls[:50]
+    for u in urls[:6]:
+        live_requests.append({'method': 'GET', 'url': u, 'status': 200, 'time': '-'})
+    if base.exists():
+        recent_activity.append({'event': f'Evidence directory found for {target}'})
+    if urls:
+        recent_activity.append({'event': f'Loaded {len(urls)} recon URLs'})
+    if finding_files:
+        recent_activity.append({'event': f'Loaded {len(finding_files)} finding artifacts'})
+
+    return {
+        'target': target,
+        'scope': 'scope.yaml',
+        'stats': {
+            'targets': 1 if base.exists() else 0,
+            'live_targets': 1 if urls else 0,
+            'endpoints': len(urls),
+            'findings': len(finding_files),
+            'risk_score': risk_score,
+            'agents_online': agents_online,
+            'evidence_items': evidence_items,
+        },
+        'attack_surface': attack_surface,
+        'findings_by_severity': severity_counts,
+        'top_findings': top_findings,
+        'recent_findings': recent_findings,
+        'live_requests': live_requests,
+        'recent_activity': recent_activity,
+        'tooling_status': tooling_status,
+    }
 
 def _v(target, scope):
     try: validate_scope(target, scope)
