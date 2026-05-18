@@ -40,14 +40,30 @@ def evidence(target: str):
 def findings(target: str):
     f = Path('evidence') / target / 'ai-analysis'; return {'findings': sorted([p.name for p in f.glob('*.json')]) if f.exists() else []}
 
+@app.get('/api/agents/status')
+def agents_status():
+    return [
+        {'name': 'Scope Guard', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Recon Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'HTTP Probe Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'JS Intelligence Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'API Mapper Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Auth Diff Agent', 'status': 'idle', 'risk': 'approval'},
+        {'name': 'IDOR Hunter Agent', 'status': 'idle', 'risk': 'approval'},
+        {'name': 'Nuclei Safe Agent', 'status': 'idle', 'risk': 'approval'},
+        {'name': 'Metasploit Agent', 'status': 'manual', 'risk': 'manual'},
+        {'name': 'Race Condition Agent', 'status': 'manual', 'risk': 'manual'},
+        {'name': 'Cloud & Secrets Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Evidence Collector', 'status': 'active', 'risk': 'safe'},
+        {'name': 'False Positive Killer', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Risk Ranker Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Report Agent', 'status': 'active', 'risk': 'safe'},
+        {'name': 'Retest Agent', 'status': 'idle', 'risk': 'safe'},
+    ]
+
 @app.get('/api/dashboard/{target}')
 def dashboard_summary(target: str):
-    evidence_root = Path('evidence').resolve()
-    base = (evidence_root / target).resolve()
-    try:
-        base.relative_to(evidence_root)
-    except ValueError:
-        raise HTTPException(status_code=400, detail='Invalid target path')
+    base = Path('evidence') / target
     files = [p for p in base.rglob('*') if p.is_file()] if base.exists() else []
     evidence_items = len(files)
 
