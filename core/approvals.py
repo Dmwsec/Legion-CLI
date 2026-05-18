@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 ROOT = Path('data/approvals')
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -13,16 +13,8 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _normalize_approval_id(approval_id: str) -> str:
-    try:
-        return str(UUID(approval_id))
-    except Exception as e:
-        raise ValueError(f'Invalid approval id: {approval_id}') from e
-
-
 def _path(approval_id: str) -> Path:
-    safe_id = _normalize_approval_id(approval_id)
-    return ROOT / f'{safe_id}.json'
+    return ROOT / f'{approval_id}.json'
 
 
 def create_approval(project: str, target: str, agent: str, action: str, command_preview: str, risk_level: str, reason: str) -> dict:
