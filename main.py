@@ -25,6 +25,7 @@ from modules.security_workflows import race_condition_workflow,payment_logic_wor
 from modules.replay_engine import replay_diff
 from modules.finding_ranker import rank_findings
 from modules.metasploit_safe import msf_search, msf_info, msf_plan
+from core.approvals import list_approvals, approve as approve_request, deny as deny_request
 
 
 def _read_text(path: str) -> str:
@@ -75,6 +76,9 @@ def main():
     ms = sub.add_parser('msf-search'); ms.add_argument('query')
     mi = sub.add_parser('msf-info'); mi.add_argument('module')
     mp = sub.add_parser('msf-plan'); mp.add_argument('module'); mp.add_argument('--target', required=True); mp.add_argument('--scope', default='scope.yaml')
+    sub.add_parser('approvals')
+    ap = sub.add_parser('approve'); ap.add_argument('approval_id')
+    dn = sub.add_parser('deny'); dn.add_argument('approval_id')
     sub.add_parser('agent-chat')
     args = parser.parse_args()
 
@@ -112,6 +116,9 @@ def main():
         elif args.command == 'msf-search': print(msf_search(args.query))
         elif args.command == 'msf-info': print(msf_info(args.module))
         elif args.command == 'msf-plan': validate_scope(args.target, args.scope); print(msf_plan(args.module, args.target, scope=args.scope))
+        elif args.command == 'approvals': print({'approvals': list_approvals()})
+        elif args.command == 'approve': print(approve_request(args.approval_id))
+        elif args.command == 'deny': print(deny_request(args.approval_id))
         elif args.command == 'agent-chat': terminal_chat()
         elif args.command == 'replay-diff': validate_scope(args.target, args.scope); print(replay_diff(args.target, args.request_file, args.session_a, args.session_b))
         elif args.command == 'rank-findings': validate_scope(args.target, args.scope); print(rank_findings(args.target))

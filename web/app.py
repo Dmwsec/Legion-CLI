@@ -20,6 +20,7 @@ from web.schemas import *
 from web.agent_memory import load_session, save_session
 from web.agent_safety import safety_for
 from web.agent_tools import dispatch, missing_params, required_for
+from core.approvals import create_approval, list_approvals, approve as approve_request, deny as deny_request, get_approval
 
 app = FastAPI(title='Legion Dashboard API')
 static_dir = Path(__file__).parent / 'static'
@@ -61,9 +62,32 @@ def agents_status():
         {'name': 'Retest Agent', 'status': 'idle', 'risk': 'safe'},
     ]
 
+@app.get('/api/approvals')
+def approvals():
+    return {'approvals': list_approvals()}
+
+@app.post('/api/approvals/{approval_id}/approve')
+def approvals_approve(approval_id: str):
+    try:
+        return approve_request(approval_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.post('/api/approvals/{approval_id}/deny')
+def approvals_deny(approval_id: str):
+    try:
+        return deny_request(approval_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.get('/api/dashboard/{target}')
 def dashboard_summary(target: str):
-    base = Path('evidence') / target
+    evidence_root = Path('evidence').resolve()
+    base = (evidence_root / target).resolve()
+    try:
+        base.relative_to(evidence_root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Invalid target path')
     files = [p for p in base.rglob('*') if p.is_file()] if base.exists() else []
     evidence_items = len(files)
 
@@ -208,7 +232,16 @@ def chat(req: ChatRequest):
     if intent and intent != 'none' and safety == 'safe':
         result = dispatch(intent, params)
     elif confirm:
-        mem['pending_confirmation'] = {'tool': intent, 'params': params, 'preview': f"{intent} with {params}"}
+        req = create_approval(
+            project='legion-dashboard',
+            target=req.target,
+            agent='chat',
+            action=intent,
+            command_preview=f"{intent} with {params}",
+            risk_level=safety,
+            reason='Chat requested action requiring confirmation.',
+        )
+        mem['pending_confirmation'] = {'tool': intent, 'params': params, 'preview': f"{intent} with {params}", 'approval_id': req['id']}
 
     mem['messages'].append({'role': 'user', 'content': req.message})
     mem['last_results'] = result or mem.get('last_results', {})
@@ -220,6 +253,7 @@ def chat(req: ChatRequest):
         'tool_call': tool_call,
         'safety_level': safety,
         'confirmation_required': confirm,
+        'approval_id': mem.get('pending_confirmation', {}).get('approval_id') if confirm else None,
         'result': result,
         'next_suggestions': parsed.get('next_suggestions', []),
         'session_id': sid,
@@ -231,6 +265,13 @@ def chat_confirm(req: ChatConfirmRequest):
     pending = mem.get('pending_confirmation')
     if not pending:
         return {'assistant_message':'No pending confirmation.', 'result':None}
+    approval_id = pending.get('approval_id')
+    if approval_id:
+        a = get_approval(approval_id)
+        if not a:
+            return {'assistant_message': 'Approval request not found.', 'result': None, 'approval_id': approval_id}
+        if a.get('status') != 'approved':
+            return {'assistant_message': f'Approval {approval_id} is {a.get("status", "pending")}. Action not executed.', 'result': None, 'approval_id': approval_id}
     result = dispatch(pending['tool'], pending['params'])
     mem['pending_confirmation'] = None
     mem['last_results'] = result
