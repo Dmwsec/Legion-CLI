@@ -190,19 +190,19 @@ Expected:
 pip install -r requirements.txt
 cp .env.example .env
 cp scope.example.yaml scope.yaml
-python3 main.py dashboard --host 127.0.0.1 --port 8080
+python3 main.py dashboard --host 127.0.0.1 --port 9000
 ```
 
 Open:
 
 ```bash
-open http://127.0.0.1:8080
+open http://127.0.0.1:9000
 ```
 
 ## Creating Scope From Program Text
 
 ### Dashboard flow
-1. Open Dashboard (`python3 main.py dashboard --host 127.0.0.1 --port 8080`).
+1. Open Dashboard (`python3 main.py dashboard --host 127.0.0.1 --port 9000`).
 2. Fill **Program name**.
 3. Paste scope/rules into the large scope text box.
 4. Click **Create Scope From Chat**.
