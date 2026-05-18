@@ -41,7 +41,7 @@ def main():
     parser = argparse.ArgumentParser(description='Legion CLI')
     sub = parser.add_subparsers(dest='command')
     sub.add_parser('tools')
-    dashboard = sub.add_parser('dashboard'); dashboard.add_argument('--host', default='127.0.0.1'); dashboard.add_argument('--port', type=int, default=8080)
+    dashboard = sub.add_parser('dashboard'); dashboard.add_argument('--host', default='127.0.0.1'); dashboard.add_argument('--port', type=int, default=9000)
     recon = sub.add_parser('recon'); recon.add_argument('target'); recon.add_argument('--scope', default='scope.yaml')
     recon_pipeline = sub.add_parser('recon-pipeline'); recon_pipeline.add_argument('target'); recon_pipeline.add_argument('--scope', default='scope.yaml')
     classify = sub.add_parser('classify-endpoints'); classify.add_argument('target'); classify.add_argument('--input', required=True); classify.add_argument('--scope', default='scope.yaml')
