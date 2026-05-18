@@ -82,7 +82,12 @@ def approvals_deny(approval_id: str):
 
 @app.get('/api/dashboard/{target}')
 def dashboard_summary(target: str):
-    base = Path('evidence') / target
+    evidence_root = Path('evidence').resolve()
+    base = (evidence_root / target).resolve()
+    try:
+        base.relative_to(evidence_root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Invalid target path')
     files = [p for p in base.rglob('*') if p.is_file()] if base.exists() else []
     evidence_items = len(files)
 
