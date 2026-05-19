@@ -13,6 +13,14 @@ BLOCKED_TERMS = [
     'exploit/', 'payload/', 'post/', 'meterpreter', 'persistence', 'shell',
     'reverse_tcp', 'bind_tcp', 'brute', 'login',
 ]
+SAFE_EXECUTABLE_PREFIXES = ('auxiliary/scanner/',)
+SAFE_MODULE_RE = re.compile(r'^[A-Za-z0-9_./-]+$')
+SAFE_QUERY_RE = re.compile(r'^[A-Za-z0-9_.:/ -]{1,120}$')
+
+
+def _safe_target_dir(target: str) -> str:
+    safe = re.sub(r'[^A-Za-z0-9._-]+', '_', (target or '').strip()).strip('._-')
+    return safe[:120] or 'unknown-target'
 
 
 def _blocked_reason(module_or_query: str) -> str | None:
@@ -30,13 +38,14 @@ def _ensure_msfconsole_installed() -> None:
 
 def _run_msfconsole(command: str) -> dict:
     proc = subprocess.run(
-        ['msfconsole', '-q', '-x', f'{command}; exit'],
+        ['msfconsole', '-q', '-x', command_text],
         text=True,
         capture_output=True,
         timeout=120,
+        check=False,
     )
     return {
-        'command': f'msfconsole -q -x {shlex.quote(command + "; exit")}',
+        'command': f'msfconsole -q -x {shlex.quote(command_text)}',
         'returncode': proc.returncode,
         'stdout': proc.stdout,
         'stderr': proc.stderr,
@@ -54,7 +63,8 @@ def msf_search(query: str) -> dict:
 
 
 def msf_info(module: str) -> dict:
-    reason = _blocked_reason(module)
+    m = _validate_module(module)
+    reason = _blocked_reason(m)
     if reason:
         raise ValueError(f'msf-info blocked. {reason}')
     m = (module or '').strip()
@@ -65,9 +75,11 @@ def msf_info(module: str) -> dict:
 
 
 def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
-    m = (module or '').strip()
-    if not m:
-        raise ValueError('Module is required for msf-plan')
+    m = _validate_module(module)
+    low = m.lower()
+    blocked_reason = _blocked_reason(m)
+    aux_scanner = low.startswith(SAFE_EXECUTABLE_PREFIXES)
+    executable_with_approval = aux_scanner and not blocked_reason
 
     low = m.lower()
     blocked_reason = _blocked_reason(m)
@@ -79,7 +91,8 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         'target': target,
         'scope': scope,
         'module': m,
-        'approval_required': approval_required,
+        'approval_required': executable_with_approval,
+        'executable_with_approval': executable_with_approval,
         'policy': {
             'search_info_allowed': True,
             'aux_scanner_requires_approval': True,

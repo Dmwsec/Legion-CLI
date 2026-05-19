@@ -1,9 +1,13 @@
+import ipaddress
 import json
 import os
 import re
+import socket
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import requests
+from requests.adapters import HTTPAdapter
 from openai import OpenAI
 
 from core.approval import require_approval
@@ -73,8 +77,61 @@ def analyze_js_content(target: str, content: str, ai_summary: bool = False) -> d
     return {'target': target, 'output': str(out), 'routes': len(routes), 'tokens': len(masked_tokens)}
 
 
+def _validate_public_http_url(url: str) -> tuple:
+    parsed = urlparse(url)
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError('Invalid URL scheme. Only http and https are allowed.')
+    if not parsed.hostname:
+        raise ValueError('Invalid URL: hostname is required.')
+
+    try:
+        addr_info = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == 'https' else 80))
+    except socket.gaierror as e:
+        raise ValueError(f'Could not resolve hostname: {parsed.hostname}') from e
+
+    verified_ip = None
+    for info in addr_info:
+        ip_str = info[4][0]
+        ip_obj = ipaddress.ip_address(ip_str)
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            raise ValueError('URL resolves to a non-public IP address, which is not allowed.')
+        if verified_ip is None:
+            verified_ip = ip_str
+
+    if verified_ip is None:
+        raise ValueError('Could not resolve a valid public IP for hostname.')
+
+    return parsed, verified_ip
+
+
+class _HostHeaderSSLAdapter(HTTPAdapter):
+    def send(self, request, **kwargs):
+        host = request.headers.get('Host')
+        if host:
+            kwargs.setdefault('assert_hostname', host)
+            kwargs.setdefault('server_hostname', host)
+        return super().send(request, **kwargs)
+
+
 def analyze_js_url(target: str, url: str, ai_summary: bool = False) -> dict:
-    content = requests.get(url, timeout=30).text
+    parsed, verified_ip = _validate_public_http_url(url)
+    original_host = parsed.hostname
+    pinned_netloc = f'{verified_ip}:{parsed.port}' if parsed.port else verified_ip
+    pinned_url = urlunparse((parsed.scheme, pinned_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+
+    with requests.Session() as session:
+        headers = {'Host': original_host}
+        if parsed.scheme == 'https':
+            session.mount('https://', _HostHeaderSSLAdapter())
+        content = session.get(pinned_url, headers=headers, timeout=30).text
+
     return analyze_js_content(target, content, ai_summary=ai_summary)
 
 
