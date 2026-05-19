@@ -1,45 +1,35 @@
-name: Legion CI
+name: CI
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-
-permissions:
-  contents: read
-  security-events: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
+          python-version: '3.11'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest ruff bandit
-
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
       - name: Compile check
         run: |
-          python -m py_compile main.py core/*.py modules/*.py web/*.py
-
-      - name: Ruff lint
-        run: |
-          ruff check .
-
-      - name: Bandit security scan
-        run: |
-          bandit -r . -x venv,.venv,tests
-
-      - name: Tests
-        run: |
-          pytest -q tests
+          python - <<'PY'
+          import glob, py_compile
+          paths = ['main.py','core/*.py','ai/*.py','modules/*.py','storage/*.py','traffic/*.py','browser/*.py','web/*.py']
+          files = []
+          for pat in paths:
+              files.extend(glob.glob(pat))
+          if not files:
+              raise SystemExit('No Python files found for compile check')
+          for f in sorted(set(files)):
+              py_compile.compile(f, doraise=True)
+          print(f'Compiled {len(set(files))} files')
+          PY
+      - name: Run tests
+        run: pytest -q

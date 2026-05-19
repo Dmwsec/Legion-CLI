@@ -261,6 +261,13 @@ def chat_confirm(req: ChatConfirmRequest):
     if not pending:
         return {'assistant_message':'No pending confirmation.', 'result':None}
     approval_id = pending.get('approval_id')
+    tool_call = {'tool': pending.get('tool', ''), 'params': pending.get('params', {})}
+    safety = safety_for(tool_call)
+    if safety == 'manual':
+        raise HTTPException(status_code=403, detail='Manual-risk tools cannot execute from chat confirmation.')
+    if safety not in {'safe', 'approval'}:
+        raise HTTPException(status_code=403, detail='Unknown or blocked tool safety level.')
+
     if approval_id:
         a = get_approval(approval_id)
         if not a:
