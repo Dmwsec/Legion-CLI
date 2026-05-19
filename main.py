@@ -24,7 +24,7 @@ from web.agent import terminal_chat
 from modules.security_workflows import race_condition_workflow,payment_logic_workflow,ssrf_chain_workflow,request_smuggling_workflow,mobile_reversing_workflow,cloud_misconfig_workflow,business_logic_workflow
 from modules.replay_engine import replay_diff
 from modules.finding_ranker import rank_findings
-from modules.metasploit_safe import msf_search, msf_info, msf_plan
+from modules.metasploit_safe import msf_search, msf_info, msf_plan, msf_plan_execute
 from core.approvals import list_approvals, approve as approve_request, deny as deny_request
 
 
@@ -75,7 +75,7 @@ def main():
     ts = sub.add_parser('traffic-summary'); ts.add_argument('target')
     ms = sub.add_parser('msf-search'); ms.add_argument('query')
     mi = sub.add_parser('msf-info'); mi.add_argument('module')
-    mp = sub.add_parser('msf-plan'); mp.add_argument('module'); mp.add_argument('--target', required=True); mp.add_argument('--scope', default='scope.yaml')
+    mp = sub.add_parser('msf-plan'); mp.add_argument('module'); mp.add_argument('--target', required=True); mp.add_argument('--scope', default='scope.yaml'); mp.add_argument('--approval-id')
     sub.add_parser('approvals')
     ap = sub.add_parser('approve'); ap.add_argument('approval_id')
     dn = sub.add_parser('deny'); dn.add_argument('approval_id')
@@ -115,7 +115,12 @@ def main():
         elif args.command == 'traffic-summary': print(traffic_summary(args.target))
         elif args.command == 'msf-search': print(msf_search(args.query))
         elif args.command == 'msf-info': print(msf_info(args.module))
-        elif args.command == 'msf-plan': validate_scope(args.target, args.scope); print(msf_plan(args.module, args.target, scope=args.scope))
+        elif args.command == 'msf-plan':
+            validate_scope(args.target, args.scope)
+            if args.approval_id:
+                print(msf_plan_execute(args.module, args.target, args.approval_id, scope=args.scope))
+            else:
+                print(msf_plan(args.module, args.target, scope=args.scope))
         elif args.command == 'approvals': print({'approvals': list_approvals()})
         elif args.command == 'approve': print(approve_request(args.approval_id))
         elif args.command == 'deny': print(deny_request(args.approval_id))
