@@ -36,35 +36,7 @@ def _ensure_msfconsole_installed() -> None:
         raise ValueError('msfconsole is not installed or not in PATH')
 
 
-def _validate_query(query: str) -> str:
-    q = (query or '').strip()
-    if not q:
-        raise ValueError('Query is required')
-    if not SAFE_QUERY_RE.fullmatch(q):
-        raise ValueError('Query contains unsupported characters')
-    reason = _blocked_reason(q)
-    if reason:
-        raise ValueError(reason)
-    return q
-
-
-def _validate_module(module: str) -> str:
-    m = (module or '').strip()
-    if not m:
-        raise ValueError('Module is required')
-    if not SAFE_MODULE_RE.fullmatch(m):
-        raise ValueError('Module contains unsupported characters')
-    return m
-
-
-def _run_msfconsole(commands: list[str]) -> dict:
-    _ensure_msfconsole_installed()
-    clean_commands = []
-    for command in commands:
-        if any(ch in command for ch in ['\n', '\r']):
-            raise ValueError('Unsafe command separator detected')
-        clean_commands.append(command.strip())
-    command_text = '; '.join([*clean_commands, 'exit'])
+def _run_msfconsole(command: str) -> dict:
     proc = subprocess.run(
         ['msfconsole', '-q', '-x', command_text],
         text=True,
@@ -81,8 +53,13 @@ def _run_msfconsole(commands: list[str]) -> dict:
 
 
 def msf_search(query: str) -> dict:
-    q = _validate_query(query)
-    return _run_msfconsole([f'search {q}'])
+    reason = _blocked_reason(query)
+    if reason:
+        raise ValueError(f'msf-search blocked. {reason}')
+    if not (query or '').strip():
+        raise ValueError('Query is required for msf-search')
+    _ensure_msfconsole_installed()
+    return _run_msfconsole(f'search {query.strip()}')
 
 
 def msf_info(module: str) -> dict:
@@ -90,7 +67,11 @@ def msf_info(module: str) -> dict:
     reason = _blocked_reason(m)
     if reason:
         raise ValueError(f'msf-info blocked. {reason}')
-    return _run_msfconsole([f'info {m}'])
+    m = (module or '').strip()
+    if not m:
+        raise ValueError('Module is required for msf-info')
+    _ensure_msfconsole_installed()
+    return _run_msfconsole(f'info {m}')
 
 
 def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
@@ -99,6 +80,11 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
     blocked_reason = _blocked_reason(m)
     aux_scanner = low.startswith(SAFE_EXECUTABLE_PREFIXES)
     executable_with_approval = aux_scanner and not blocked_reason
+
+    low = m.lower()
+    blocked_reason = _blocked_reason(m)
+    aux_scanner = low.startswith('auxiliary/scanner/')
+    approval_required = aux_scanner or bool(blocked_reason)
 
     plan = {
         'status': 'planned',
@@ -110,33 +96,31 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         'policy': {
             'search_info_allowed': True,
             'aux_scanner_requires_approval': True,
-            'never_execute': ['exploit/*', 'payload/*', 'post/*', 'meterpreter', 'persistence', 'shell', 'reverse_tcp', 'bind_tcp', 'brute', 'login'],
+            'manual_approval_required': ['exploit/*', 'payload/*', 'post/*', 'meterpreter', 'persistence', 'shell', 'reverse_tcp', 'bind_tcp', 'brute', 'login'],
         },
         'execution': 'not-executed',
         'created_at': datetime.now(timezone.utc).isoformat(),
     }
 
-    if blocked_reason:
-        plan['status'] = 'blocked'
-        plan['message'] = f'Metasploit module is permanently blocked: {blocked_reason}'
-    elif executable_with_approval:
-        approval = create_approval(
-            project='legion-cli',
-            target=target,
-            agent='metasploit',
-            action='metasploit-auxiliary-scanner',
-            command_preview=f'msfconsole -q -x "use {m}; setg RHOSTS <target>; run; exit"',
-            risk_level='approval',
-            reason=f'Metasploit auxiliary scanner approval required for module: {m}',
-        )
-        plan['approval_id'] = approval['id']
-        plan['status'] = 'pending_approval'
-        plan['message'] = 'Approval required before auxiliary scanner execution.'
-    else:
+    if not aux_scanner:
         plan['status'] = 'manual_guidance'
         plan['message'] = 'Only auxiliary/scanner/* modules may execute. Non-auxiliary modules require manual guidance and cannot auto-execute from this flow.'
 
-    out_dir = Path('evidence') / _safe_target_dir(target) / 'ai-analysis'
+    if approval_required:
+        approval = create_approval(
+            project='legion-cli',
+            target=target,
+            agent='cli',
+            action='metasploit-plan-execute',
+            command_preview=f'msfconsole -q -x "use {m}; setg RHOSTS {target}; run; exit"',
+            risk_level='manual',
+            reason=f'Metasploit execution approval required for module: {m}',
+        )
+        plan['approval_id'] = approval['id']
+        plan['status'] = 'pending_approval'
+        plan['message'] = 'Approval required before any Metasploit module execution.'
+
+    out_dir = Path('evidence') / target / 'ai-analysis'
     out_dir.mkdir(parents=True, exist_ok=True)
     safe_mod = re.sub(r'[^a-zA-Z0-9._-]+', '_', m).strip('_') or 'module'
     out_file = out_dir / f'metasploit_plan_{safe_mod}.json'
@@ -146,15 +130,15 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
 
 def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 'scope.yaml') -> dict:
-    m = _validate_module(module)
+    m = (module or '').strip()
     t = (target or '').strip()
+    if not m:
+        raise ValueError('Module is required for msf-plan')
     if not t:
         raise ValueError('Target is required for msf-plan')
 
-    reason = _blocked_reason(m)
-    if reason:
-        raise ValueError(f'Metasploit execution blocked permanently: {reason}')
-    if not m.lower().startswith(SAFE_EXECUTABLE_PREFIXES):
+    low = m.lower()
+    if not low.startswith('auxiliary/scanner/'):
         raise ValueError('Only auxiliary/scanner/* modules may execute in this flow. Use manual guidance for non-auxiliary modules.')
 
     if not (approval_id or '').strip():
@@ -166,6 +150,8 @@ def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 's
     if rec.get('status') != 'approved':
         raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
 
-    out = _run_msfconsole([f'use {m}', f'setg RHOSTS {t}', 'run'])
+    _ensure_msfconsole_installed()
+    cmd = f'use {m}; setg RHOSTS {t}; run'
+    out = _run_msfconsole(cmd)
     out.update({'status': 'executed', 'target': t, 'scope': scope, 'module': m, 'approval_id': approval_id})
     return out
