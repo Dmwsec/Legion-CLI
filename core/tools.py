@@ -50,8 +50,8 @@ TOOL_REGISTRY = [
     {'name': 'apktool', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'apktool', 'description': 'Android APK reversing'},
     {'name': 'jadx', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'jadx', 'description': 'Android decompiler'},
     {'name': 'frida', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'frida', 'description': 'Dynamic instrumentation toolkit'},
-    {'name': 'mobfs', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'MobSF', 'description': 'Mobile app static/dynamic analyzer'},
-    {'name': 'metasploit', 'category': 'validation', 'risk_level': 'manual', 'command_check': 'msfconsole', 'description': 'Controlled Metasploit validation; exploit modules blocked by default'},
+    {'name': 'mobsf', 'category': 'mobile', 'risk_level': 'manual', 'command_check': 'mobsf', 'description': 'Mobile app static/dynamic analyzer'},
+    {'name': 'metasploit', 'category': 'validation', 'risk_level': 'manual', 'command_check': 'msfconsole', 'description': 'Controlled Metasploit validation; exploit modules require explicit user approval to run'},
 ]
 
 
@@ -65,7 +65,7 @@ def get_tools_with_status() -> list[dict]:
 
 def list_tools():
     tools = get_tools_with_status()
-    print('\n[Legion Tool Registry - 50 Tools]\n')
+    print(f'\n[Legion Tool Registry - {len(tools)} Tools]\n')
     for level in ('safe', 'approval', 'manual'):
         group = [t for t in tools if t['risk_level'] == level]
         print(f'{level.upper()} ({len(group)}):')
