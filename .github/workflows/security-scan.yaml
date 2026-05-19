@@ -1,0 +1,28 @@
+name: Security Scans
+
+on: [push, pull_request]
+
+jobs:
+  semgrep_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: "p/r2c-security-audit"
+
+  gitleaks_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Gitleaks
+        uses: gitleaks/actions/gitleaks@v2
+
+  dependency_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Dependency Check
+        run: |
+          docker run --rm -v $(pwd):/src owasp/dependency-check --scan /src --format HTML --out /src/dependency-report.html
