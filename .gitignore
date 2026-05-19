@@ -1,2 +1,12 @@
+venv/
+.venv/
 __pycache__/
+*.pyc
+.env
+data/
+evidence/
+logs/
+reports/
+*.sqlite
+*.db
 .your-repo/
