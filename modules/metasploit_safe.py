@@ -5,6 +5,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from core.approvals import create_approval, get_approval
+
 
 BLOCKED_TERMS = [
     'exploit/', 'payload/', 'post/', 'meterpreter', 'persistence', 'shell',
@@ -59,18 +61,9 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
     if not m:
         raise ValueError('Module is required for msf-plan')
 
-    reason = _blocked_reason(m)
-    if reason:
-        return {
-            'status': 'blocked',
-            'target': target,
-            'scope': scope,
-            'module': m,
-            'message': reason,
-            'execution': 'never-executed',
-        }
-
-    approval_required = m.lower().startswith('auxiliary/scanner/')
+    low = m.lower()
+    blocked_reason = _blocked_reason(m)
+    approval_required = bool(blocked_reason) or low.startswith('auxiliary/scanner/')
     plan = {
         'status': 'planned',
         'target': target,
@@ -86,6 +79,20 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         'created_at': datetime.now(timezone.utc).isoformat(),
     }
 
+    if approval_required:
+        approval = create_approval(
+            project='legion-cli',
+            target=target,
+            agent='cli',
+            action='metasploit-plan-execute',
+            command_preview=f'msfconsole -q -x "use {m}; setg RHOSTS {target}; run; exit"',
+            risk_level='manual',
+            reason=f'Metasploit execution approval required for module: {m}',
+        )
+        plan['approval_id'] = approval['id']
+        plan['status'] = 'pending_approval'
+        plan['message'] = 'Approval required before any Metasploit module execution.'
+
     out_dir = Path('evidence') / target / 'ai-analysis'
     out_dir.mkdir(parents=True, exist_ok=True)
     safe_mod = re.sub(r'[^a-zA-Z0-9._-]+', '_', m).strip('_') or 'module'
@@ -93,3 +100,25 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
     out_file.write_text(json.dumps(plan, indent=2), encoding='utf-8')
 
     return {**plan, 'plan_file': str(out_file)}
+
+
+def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 'scope.yaml') -> dict:
+    m = (module or '').strip()
+    t = (target or '').strip()
+    if not m:
+        raise ValueError('Module is required for msf-plan')
+    if not t:
+        raise ValueError('Target is required for msf-plan')
+    if not (approval_id or '').strip():
+        raise ValueError('approval_id is required for module execution')
+
+    rec = get_approval(approval_id.strip())
+    if not rec:
+        raise ValueError(f'Approval not found: {approval_id}')
+    if rec.get('status') != 'approved':
+        raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
+
+    cmd = f'use {m}; setg RHOSTS {t}; run'
+    out = _run_msfconsole(cmd)
+    out.update({'status': 'executed', 'target': t, 'scope': scope, 'module': m, 'approval_id': approval_id})
+    return out
