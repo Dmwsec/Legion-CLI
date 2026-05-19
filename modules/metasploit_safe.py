@@ -36,16 +36,34 @@ def _ensure_msfconsole_installed() -> None:
         raise ValueError('msfconsole is not installed or not in PATH')
 
 
+def _validate_module(module: str) -> str:
+    m = (module or '').strip()
+    if not m:
+        raise ValueError('Module is required')
+    if not SAFE_MODULE_RE.match(m):
+        raise ValueError('Invalid module name')
+    return m
+
+
+def _validate_query(query: str) -> str:
+    q = (query or '').strip()
+    if not q:
+        raise ValueError('Query is required')
+    if not SAFE_QUERY_RE.match(q):
+        raise ValueError('Invalid query')
+    return q
+
+
 def _run_msfconsole(command: str) -> dict:
     proc = subprocess.run(
-        ['msfconsole', '-q', '-x', command_text],
+        ['msfconsole', '-q', '-x', command],
         text=True,
         capture_output=True,
         timeout=120,
         check=False,
     )
     return {
-        'command': f'msfconsole -q -x {shlex.quote(command_text)}',
+        'command': f'msfconsole -q -x {shlex.quote(command)}',
         'returncode': proc.returncode,
         'stdout': proc.stdout,
         'stderr': proc.stderr,
@@ -53,13 +71,12 @@ def _run_msfconsole(command: str) -> dict:
 
 
 def msf_search(query: str) -> dict:
-    reason = _blocked_reason(query)
+    q = _validate_query(query)
+    reason = _blocked_reason(q)
     if reason:
         raise ValueError(f'msf-search blocked. {reason}')
-    if not (query or '').strip():
-        raise ValueError('Query is required for msf-search')
     _ensure_msfconsole_installed()
-    return _run_msfconsole(f'search {query.strip()}')
+    return _run_msfconsole(f'search {q}')
 
 
 def msf_info(module: str) -> dict:
@@ -67,9 +84,6 @@ def msf_info(module: str) -> dict:
     reason = _blocked_reason(m)
     if reason:
         raise ValueError(f'msf-info blocked. {reason}')
-    m = (module or '').strip()
-    if not m:
-        raise ValueError('Module is required for msf-info')
     _ensure_msfconsole_installed()
     return _run_msfconsole(f'info {m}')
 
@@ -80,11 +94,6 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
     blocked_reason = _blocked_reason(m)
     aux_scanner = low.startswith(SAFE_EXECUTABLE_PREFIXES)
     executable_with_approval = aux_scanner and not blocked_reason
-
-    low = m.lower()
-    blocked_reason = _blocked_reason(m)
-    aux_scanner = low.startswith('auxiliary/scanner/')
-    approval_required = aux_scanner or bool(blocked_reason)
 
     plan = {
         'status': 'planned',
@@ -102,11 +111,10 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         'created_at': datetime.now(timezone.utc).isoformat(),
     }
 
-    if not aux_scanner:
+    if blocked_reason or not aux_scanner:
         plan['status'] = 'manual_guidance'
-        plan['message'] = 'Only auxiliary/scanner/* modules may execute. Non-auxiliary modules require manual guidance and cannot auto-execute from this flow.'
-
-    if approval_required:
+        plan['message'] = 'Only auxiliary/scanner/* modules may execute. Non-auxiliary or blocked modules require manual guidance and cannot auto-execute from this flow.'
+    elif executable_with_approval:
         approval = create_approval(
             project='legion-cli',
             target=target,
@@ -128,9 +136,8 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
     return {**plan, 'plan_file': str(out_file)}
 
-
 def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 'scope.yaml') -> dict:
-    m = (module or '').strip()
+    m = _validate_module(module)
     t = (target or '').strip()
     if not m:
         raise ValueError('Module is required for msf-plan')
