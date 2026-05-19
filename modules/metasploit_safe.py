@@ -71,8 +71,8 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
     low = m.lower()
     blocked_reason = _blocked_reason(m)
-    approval_required = bool(blocked_reason)
     aux_scanner = low.startswith('auxiliary/scanner/')
+    approval_required = aux_scanner or bool(blocked_reason)
 
     plan = {
         'status': 'planned',
@@ -82,7 +82,7 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         'approval_required': approval_required,
         'policy': {
             'search_info_allowed': True,
-            'aux_scanner_default_safe_execute': True,
+            'aux_scanner_requires_approval': True,
             'manual_approval_required': ['exploit/*', 'payload/*', 'post/*', 'meterpreter', 'persistence', 'shell', 'reverse_tcp', 'bind_tcp', 'brute', 'login'],
         },
         'execution': 'not-executed',
@@ -91,7 +91,7 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
     if not aux_scanner:
         plan['status'] = 'manual_guidance'
-        plan['message'] = 'Only auxiliary/scanner/* modules may execute by default. For other modules, use manual approval workflow.'
+        plan['message'] = 'Only auxiliary/scanner/* modules may execute. Non-auxiliary modules require manual guidance and cannot auto-execute from this flow.'
 
     if approval_required:
         approval = create_approval(
@@ -126,17 +126,16 @@ def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 's
 
     low = m.lower()
     if not low.startswith('auxiliary/scanner/'):
-        raise ValueError('Only auxiliary/scanner/* may execute by default. Other modules require manual guidance and separate approval process.')
+        raise ValueError('Only auxiliary/scanner/* modules may execute in this flow. Use manual guidance for non-auxiliary modules.')
 
-    blocked_reason = _blocked_reason(m)
-    if blocked_reason:
-        if not (approval_id or '').strip():
-            raise ValueError(f'Approval is required for this module. {blocked_reason}')
-        rec = get_approval(approval_id.strip())
-        if not rec:
-            raise ValueError(f'Approval not found: {approval_id}')
-        if rec.get('status') != 'approved':
-            raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
+    if not (approval_id or '').strip():
+        raise ValueError('approval_id is required for Metasploit execution')
+
+    rec = get_approval(approval_id.strip())
+    if not rec:
+        raise ValueError(f'Approval not found: {approval_id}')
+    if rec.get('status') != 'approved':
+        raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
 
     _ensure_msfconsole_installed()
     cmd = f'use {m}; setg RHOSTS {t}; run'

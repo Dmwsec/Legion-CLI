@@ -44,13 +44,17 @@ def test_msf_info_builds_safe_command(monkeypatch):
     assert seen['cmd'] == 'info auxiliary/scanner/http/title'
 
 
-def test_msf_plan_execute_exploit_cannot_run_without_approval():
-    with pytest.raises(ValueError, match='Only auxiliary/scanner/'):
-        msf.msf_plan_execute('exploit/linux/http/foo', 'example.com', '')
+def test_msf_search_requires_msfconsole(monkeypatch):
+    monkeypatch.setattr(msf.shutil, 'which', lambda _: None)
+    with pytest.raises(ValueError, match='msfconsole is not installed'):
+        msf.msf_search('ssl')
 
 
-def test_aux_scanner_executes_without_approval(monkeypatch):
-    monkeypatch.setattr(msf.shutil, 'which', lambda _: '/usr/bin/msfconsole')
-    monkeypatch.setattr(msf, '_run_msfconsole', lambda cmd: {'command': cmd, 'returncode': 0, 'stdout': 'ok', 'stderr': ''})
-    out = msf.msf_plan_execute('auxiliary/scanner/http/title', 'example.com', '')
-    assert out['status'] == 'executed'
+def test_msf_plan_execute_exploit_cannot_run_in_auto_flow():
+    with pytest.raises(ValueError, match=r'Only auxiliary/scanner/\* modules may execute'):
+        msf.msf_plan_execute('exploit/linux/http/foo', 'example.com', 'abc')
+
+
+def test_aux_scanner_requires_approval_id():
+    with pytest.raises(ValueError, match='approval_id is required'):
+        msf.msf_plan_execute('auxiliary/scanner/http/title', 'example.com', '')
