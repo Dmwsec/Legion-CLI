@@ -1,3 +1,4 @@
+from pathlib import Path
 from fastapi.testclient import TestClient
 
 from web.app import app
@@ -35,3 +36,10 @@ def test_dashboard_unknown_target_returns_empty_clean_response():
     assert data['recent_findings'] == []
     assert data['live_requests'] == []
     assert data['recent_activity'] == []
+
+
+def test_dashboard_html_empty_target_state():
+    html = (Path('web/static/index.html')).read_text(encoding='utf-8')
+    assert 'No target selected' in html
+    assert 'id="target"' in html
+

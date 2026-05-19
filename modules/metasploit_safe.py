@@ -1,6 +1,7 @@
 import json
 import re
 import shlex
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +21,11 @@ def _blocked_reason(module_or_query: str) -> str | None:
         if term in low:
             return f'Blocked by policy term: {term}'
     return None
+
+
+def _ensure_msfconsole_installed() -> None:
+    if shutil.which('msfconsole') is None:
+        raise ValueError('msfconsole is not installed or not in PATH')
 
 
 def _run_msfconsole(command: str) -> dict:
@@ -43,6 +49,7 @@ def msf_search(query: str) -> dict:
         raise ValueError(f'msf-search blocked. {reason}')
     if not (query or '').strip():
         raise ValueError('Query is required for msf-search')
+    _ensure_msfconsole_installed()
     return _run_msfconsole(f'search {query.strip()}')
 
 
@@ -53,6 +60,7 @@ def msf_info(module: str) -> dict:
     m = (module or '').strip()
     if not m:
         raise ValueError('Module is required for msf-info')
+    _ensure_msfconsole_installed()
     return _run_msfconsole(f'info {m}')
 
 
@@ -63,7 +71,9 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
     low = m.lower()
     blocked_reason = _blocked_reason(m)
-    approval_required = bool(blocked_reason) or low.startswith('auxiliary/scanner/')
+    approval_required = bool(blocked_reason)
+    aux_scanner = low.startswith('auxiliary/scanner/')
+
     plan = {
         'status': 'planned',
         'target': target,
@@ -72,12 +82,16 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         'approval_required': approval_required,
         'policy': {
             'search_info_allowed': True,
-            'aux_scanner_allowed_with_approval_only': True,
-            'never_execute': ['exploit/*', 'payload/*', 'post/*', 'shell payloads', 'credential brute force', 'persistence'],
+            'aux_scanner_default_safe_execute': True,
+            'manual_approval_required': ['exploit/*', 'payload/*', 'post/*', 'meterpreter', 'persistence', 'shell', 'reverse_tcp', 'bind_tcp', 'brute', 'login'],
         },
         'execution': 'not-executed',
         'created_at': datetime.now(timezone.utc).isoformat(),
     }
+
+    if not aux_scanner:
+        plan['status'] = 'manual_guidance'
+        plan['message'] = 'Only auxiliary/scanner/* modules may execute by default. For other modules, use manual approval workflow.'
 
     if approval_required:
         approval = create_approval(
@@ -109,15 +123,22 @@ def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 's
         raise ValueError('Module is required for msf-plan')
     if not t:
         raise ValueError('Target is required for msf-plan')
-    if not (approval_id or '').strip():
-        raise ValueError('approval_id is required for module execution')
 
-    rec = get_approval(approval_id.strip())
-    if not rec:
-        raise ValueError(f'Approval not found: {approval_id}')
-    if rec.get('status') != 'approved':
-        raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
+    low = m.lower()
+    if not low.startswith('auxiliary/scanner/'):
+        raise ValueError('Only auxiliary/scanner/* may execute by default. Other modules require manual guidance and separate approval process.')
 
+    blocked_reason = _blocked_reason(m)
+    if blocked_reason:
+        if not (approval_id or '').strip():
+            raise ValueError(f'Approval is required for this module. {blocked_reason}')
+        rec = get_approval(approval_id.strip())
+        if not rec:
+            raise ValueError(f'Approval not found: {approval_id}')
+        if rec.get('status') != 'approved':
+            raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
+
+    _ensure_msfconsole_installed()
     cmd = f'use {m}; setg RHOSTS {t}; run'
     out = _run_msfconsole(cmd)
     out.update({'status': 'executed', 'target': t, 'scope': scope, 'module': m, 'approval_id': approval_id})

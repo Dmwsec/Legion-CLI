@@ -4,83 +4,85 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Legion Dashboard</title>
-<style>
-:root{--bg:#070912;--bg2:#0a1020;--panel:#11192dcc;--line:#6a5cff66;--txt:#e8eeff;--muted:#94a1c8;--c:#34d8ff;--v:#9c5cff;--g:#45f3ae;--y:#ffd56b;--o:#ffac67;--r:#ff628f}
-*{box-sizing:border-box} body{margin:0;color:var(--txt);font-family:Inter,Segoe UI,Arial,sans-serif;background:radial-gradient(1100px 700px at -15% -20%,#5b3dff3b,transparent),radial-gradient(1000px 600px at 110% -10%,#2f96ff30,transparent),linear-gradient(180deg,var(--bg),var(--bg2))}
-.app{min-height:100vh;display:grid;grid-template-columns:240px 1fr 330px;gap:12px;padding:12px}
-.card{background:linear-gradient(180deg,var(--panel),#0e1628cc);border:1px solid var(--line);border-radius:16px;box-shadow:0 0 0 1px #7b66ff1e,0 0 25px #5f43ff22,0 14px 35px #0007}
-.side{padding:12px}.logo{padding:12px;border:1px solid #7a68ff66;border-radius:12px;background:#0c1224}.logo b{font-size:22px;letter-spacing:2px;color:#cfbeff}.nav button{width:100%;margin:5px 0;padding:10px;text-align:left;border-radius:10px;border:1px solid #30457f;background:#0c1427;color:var(--txt)}
-.main{display:flex;flex-direction:column;gap:12px;min-width:0}.top{padding:10px;display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:8px;align-items:center}
-input,select,button,textarea{background:#0c1427;color:var(--txt);border:1px solid #314a89;border-radius:10px;padding:8px 10px}.badge{padding:5px 9px;border-radius:99px;font-size:12px;border:1px solid}.ok{color:var(--g);border-color:#45f3ae80}.safe{color:var(--c);border-color:#34d8ff88}
-.stats{display:grid;grid-template-columns:repeat(6,minmax(100px,1fr));gap:10px}.stat{padding:10px}.k{font-size:12px;color:var(--muted)}.v{font-size:24px;font-weight:700}
-.layout{display:grid;grid-template-columns:2fr 1fr;gap:12px}.stack{display:flex;flex-direction:column;gap:12px}.panel{padding:12px}.panel h3{margin:0 0 10px;color:#d4c8ff}
-.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2b396633;font-size:13px}.pill{font-size:11px;border:1px solid #3f5595;border-radius:999px;padding:2px 8px}.on{color:var(--g);border-color:#45f3ae88}.idle{color:#a9b5d8}
-.legend{display:flex;gap:8px;flex-wrap:wrap}.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px}
-.chat{padding:12px;display:flex;flex-direction:column;gap:12px}.log{height:300px;overflow:auto;background:#0a1121;border:1px solid #2e3e71;border-radius:10px;padding:8px}.msg{padding:8px;border-radius:10px;margin:6px 0;font-size:13px}.u{background:#192850}.a{background:#172137}
-.bottom{position:fixed;left:12px;right:12px;bottom:10px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;background:#091022f2;border:1px solid #3c57a1;border-radius:12px}
-.meter{width:90px;height:7px;background:#1a2647;border-radius:99px;border:1px solid #38579d}.meter>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--c),var(--v))}
-@media (max-width:1450px){.app{grid-template-columns:220px 1fr}.chat{grid-column:1/-1}.stats{grid-template-columns:repeat(3,1fr)}.layout{grid-template-columns:1fr}}
-@media (max-width:900px){.app{grid-template-columns:1fr}.side{display:none}.top{grid-template-columns:1fr}.bottom{position:static;margin:0 12px 12px}}
-</style>
+<style>body{margin:0;background:#0a1020;color:#e8eeff;font-family:Segoe UI,Arial,sans-serif}.app{display:grid;grid-template-columns:240px 1fr 340px;gap:12px;padding:12px;min-height:100vh}.card{background:#111a30;border:1px solid #5f64ff66;border-radius:14px;padding:10px}.nav button,.btn,input,textarea{background:#0d1530;color:#e8eeff;border:1px solid #38539e;border-radius:10px;padding:8px}.btn:disabled{opacity:.45;cursor:not-allowed}.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.row{display:flex;justify-content:space-between;border-bottom:1px solid #2b3d7a66;padding:6px 0;font-size:13px}.pill{border:1px solid #4e63aa;padding:2px 8px;border-radius:999px;font-size:11px}.top{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;align-items:center}.layout{display:grid;grid-template-columns:2fr 1fr;gap:10px}.stack{display:flex;flex-direction:column;gap:10px}.log{height:220px;overflow:auto;background:#0c1327;border:1px solid #2f447f;border-radius:10px;padding:8px}.msg{padding:7px;border-radius:8px;margin:6px 0}.u{background:#192850}.a{background:#18243e}.muted{color:#98a6ca}.bottom{position:fixed;left:12px;right:12px;bottom:8px;background:#0a1125f0;border:1px solid #3d58a4;border-radius:10px;padding:7px 10px;font-size:12px;display:flex;justify-content:space-between}.warn{color:#ffd56b}</style>
 </head>
 <body>
 <div class="app">
-  <aside class="side card"><div class="logo"><b>LEGION</b><div style="color:var(--muted);font-size:12px">Cyber Command Center</div></div><div class="nav" id="nav"></div></aside>
-  <main class="main">
-    <section class="top card">
-      <div style="font-weight:700;color:#ccb9ff">LEGION</div>
-      <div style="display:flex;gap:8px"><select id="target"><option>example.com</option></select><input id="scope" value="scope.yaml" /></div>
-      <span class="badge ok">In Scope</span><span class="badge safe">Safe Mode</span>
-      <input id="search" placeholder="Search targets, endpoints, evidence..." />
-      <div>🛡️ 🔔 ⚙️ 👤</div>
+  <aside class="card"><h2>LEGION</h2><div id="nav"></div></aside>
+  <main style="display:flex;flex-direction:column;gap:10px">
+    <section class="card top">
+      <b>LEGION</b>
+      <div style="display:flex;gap:8px"><input id="target" placeholder="Enter target (e.g. app.example.com)" /><input id="scope" value="scope.yaml" /></div>
+      <span class="pill">In Scope</span><span class="pill">Safe Mode</span><input id="search" placeholder="Search..." />
     </section>
+    <section class="card"><div id="targetState" class="warn">No target selected</div></section>
     <section class="stats" id="stats"></section>
     <section class="layout">
       <div class="stack">
-        <div class="panel card"><h3>Attack Surface Map</h3><svg id="map" viewBox="0 0 760 280" width="100%" height="250"></svg><div class="legend"><span><i class="dot" style="background:#34d8ff"></i>In Scope</span><span><i class="dot" style="background:#ff628f"></i>Out of Scope</span><span><i class="dot" style="background:#45f3ae"></i>Live</span><span><i class="dot" style="background:#8e98ba"></i>Inactive</span></div></div>
-        <div class="panel card"><h3>Top 5 Findings</h3><div id="topFindings"></div></div>
-        <div class="panel card"><h3>Recent Findings</h3><div id="recentFindings"></div></div>
-        <div class="panel card"><h3>Live Requests</h3><div id="liveRequests"></div></div>
-        <div class="panel card"><h3>Tooling Status</h3><div id="tools"></div></div>
+        <div class="card"><h3>Attack Surface Map</h3><div id="attack_surface"></div></div>
+        <div class="card"><h3>Top 5 Findings</h3><div id="top_findings"></div></div>
+        <div class="card"><h3>Recent Findings</h3><div id="recent_findings"></div></div>
+        <div class="card"><h3>Live Requests</h3><div id="live_requests"></div></div>
+        <div class="card"><h3>Tooling Status</h3><div id="tooling"></div></div>
       </div>
       <div class="stack">
-        <div class="panel card"><h3>Findings by Severity</h3><svg id="donut" viewBox="0 0 220 220" width="100%" height="220"></svg></div>
-        <div class="panel card"><h3>Agent Army Status</h3><div id="agents"></div></div>
+        <div class="card"><h3>Findings by Severity</h3><div id="severity"></div></div>
+        <div class="card"><h3>Agent Army Status</h3><div id="agents"></div></div>
       </div>
     </section>
   </main>
-  <aside class="chat card">
-    <section><h3 style="margin:0 0 8px;color:#d4c8ff">Legion Chat</h3><div id="chat" class="log"></div><textarea id="chatMsg" placeholder="Ask Legion what to test next..." style="width:100%;min-height:70px;resize:vertical"></textarea><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px"><button onclick="sendChat()">Send</button><button id="confirmBtn" onclick="confirmAction()" disabled>Confirm Pending</button><button onclick="runRecon()">Start Recon</button><button onclick="importTraffic()">Import Traffic</button><button onclick="runJs()">Run JS Intel</button><button onclick="runApiMap()">Run API Map</button><button onclick="runNuclei()">Run Nuclei Safe</button><button onclick="generateReport()">Generate Report</button></div><div id="approvalBadge" class="badge" style="display:none;margin-top:8px;color:#ffd56b;border-color:#ffd56b66">Approval Required</div></section>
-    <section><h3 style="margin:10px 0;color:#d4c8ff">Recent Activity</h3><div id="activity"></div></section>
+  <aside class="card">
+    <h3>Legion Chat</h3>
+    <div id="chat" class="log"></div>
+    <textarea id="chatMsg" placeholder="Ask Legion..." style="width:100%;min-height:70px"></textarea>
+    <input id="jsUrl" placeholder="JS URL (required for Run JS Intel)" style="width:100%;margin-top:6px"/>
+    <input id="urlsFile" placeholder="URLs file for Nuclei (e.g. evidence/<target>/recon/urls.txt)" style="width:100%;margin-top:6px"/>
+    <input id="findingName" placeholder="Finding name (required for Generate Report)" style="width:100%;margin-top:6px"/>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+      <button id="sendBtn" class="btn" onclick="sendChat()">Send</button>
+      <button id="approveBtn" class="btn" onclick="approvePending()" disabled>Approve</button>
+      <button id="denyBtn" class="btn" onclick="denyPending()" disabled>Deny</button>
+      <button id="executeBtn" class="btn" onclick="executeApproved()" disabled>Execute Approved</button>
+      <button id="reconBtn" class="btn" onclick="runRecon()">Start Recon</button>
+      <button id="jsBtn" class="btn" onclick="runJs()">Run JS Intel</button>
+      <button id="apiBtn" class="btn" onclick="runApiMap()">Run API Map</button>
+      <button id="nucleiBtn" class="btn" onclick="runNuclei()">Run Nuclei Safe</button>
+      <button id="reportBtn" class="btn" onclick="generateReport()">Generate Report</button>
+    </div>
+    <div id="approvalBadge" class="warn" style="display:none;margin-top:8px">Approval required</div>
+    <h3>Recent Activity</h3><div id="activity"></div>
   </aside>
 </div>
-<div class="bottom card"><div>Project: <b id="bProject">example.com</b> | Scope: <b id="bScope">scope.yaml</b> | Targets: <b id="bTargets">0</b> | Requests: <b id="bReq">0</b> | Mode: <b>Safe</b> | Next Step: <b>Review findings</b></div><div style="display:flex;align-items:center;gap:8px">CPU<div class="meter"><span style="width:36%"></span></div>RAM<div class="meter"><span style="width:58%"></span></div><span id="clock"></span></div></div>
+<div class="bottom"><div>Project: <b id="bProject">No target selected</b> | Scope: <b id="bScope">scope.yaml</b> | Targets: <b id="bTargets">0</b> | Requests: <b id="bReq">0</b> | Mode: <b>Safe</b></div><div id="clock"></div></div>
 <script>
-const $=i=>document.getElementById(i); let sessionId=null; let reqCount=4;
-const nav=['Dashboard','Chat with Legion','Targets','Scope Manager','Recon','HTTP / Traffic','Agents','Findings','Evidence','Reports','Retest','Settings','Logs']; $('nav').innerHTML=nav.map(n=>`<button>${n}</button>`).join('');
-const stats=[['Targets','stTargets',0],['Endpoints','stEndpoints',0],['Findings','stFindings',0],['Risk Score','stRisk',0],['Agents Online','stAgents',15],['Evidence Items','stEvidence',0]]; $('stats').innerHTML=stats.map(s=>`<div class='stat card'><div class='k'>${s[0]}</div><div id='${s[1]}' class='v'>${s[2]}</div></div>`).join('');
-const agentList=['Scope Guard','Recon Agent','HTTP Probe Agent','JS Intelligence Agent','API Mapper Agent','Auth Diff Agent','IDOR Hunter Agent','Nuclei Safe Agent','Metasploit Agent','Race Condition Agent','Cloud & Secrets Agent','Evidence Collector','False Positive Killer','Risk Ranker Agent','Report Agent','Retest Agent'];
-function target(){return $('target').value||'example.com'} function scope(){return $('scope').value||'scope.yaml'}
-function bubble(r,t){const d=document.createElement('div');d.className='msg '+(r==='u'?'u':'a');d.textContent=t;$('chat').appendChild(d);$('chat').scrollTop=$('chat').scrollHeight}
-function act(t){const d=document.createElement('div');d.className='row';d.innerHTML=`<span>${t}</span><span>${new Date().toLocaleTimeString()}</span>`;$('activity').prepend(d)}
-async function api(path,method='GET',body){try{const r=await fetch(path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):null});const txt=await r.text();let j={};try{j=JSON.parse(txt)}catch{j={raw:txt}};return{ok:r.ok,data:j}}catch{return{ok:false,data:{}}}}
-function renderMap(){const t=target();const nodes=[{n:t,x:380,y:140,c:'#34d8ff'},{n:'api.'+t,x:140,y:70,c:'#45f3ae'},{n:'www.'+t,x:620,y:72,c:'#45f3ae'},{n:'auth.'+t,x:220,y:245,c:'#8e98ba'},{n:'cdn.'+t,x:640,y:225,c:'#ff628f'},{n:'m.'+t,x:380,y:34,c:'#45f3ae'},{n:'status.'+t,x:380,y:258,c:'#45f3ae'}];let s='<g stroke="#4c6dff88" stroke-width="1.4">';for(let i=1;i<nodes.length;i++)s+=`<line x1='380' y1='140' x2='${nodes[i].x}' y2='${nodes[i].y}'/>`;s+='</g><g>';for(const a of nodes){s+=`<circle cx='${a.x}' cy='${a.y}' r='${a===nodes[0]?20:12}' fill='${a.c}'/><text x='${a.x+18}' y='${a.y+4}' fill='#dce7ff' font-size='11'>${a.n}</text>`}s+='</g>';$('map').innerHTML=s}
-function renderDonut(counts){const total=counts.reduce((a,b)=>a+b,0)||1,cols=['#ff628f','#ffac67','#ffd56b','#4f8dff'];let off=0,c='';counts.forEach((v,i)=>{const seg=(v/total)*440;c+=`<circle r='70' fill='none' stroke='${cols[i]}' stroke-width='28' stroke-dasharray='${seg} 440' stroke-dashoffset='${-off}'/>`;off+=seg});$('donut').innerHTML=`<g transform='translate(110,110) rotate(-90)'><circle r='70' fill='none' stroke='#2a3056' stroke-width='28'/>${c}</g><text x='110' y='103' text-anchor='middle' style='font-size:28px;fill:#e9f2ff'>${counts.reduce((a,b)=>a+b,0)}</text><text x='110' y='124' text-anchor='middle' style='fill:#94a7d4'>Total</text>`}
-function showFindings(list){const demo=[{title:'Broken object-level auth check',severity:'High'},{title:'CORS wildcard with credentials',severity:'Medium'},{title:'JWT weak signature policy',severity:'Medium'},{title:'Sensitive error details exposed',severity:'Low'},{title:'Debug endpoint disclosure',severity:'Info'}];const use=list.length?list:demo;$('topFindings').innerHTML=use.slice(0,5).map(f=>`<div class='row'><span>${f.title||f.name||'Finding'}</span><span class='pill ${/high/i.test(f.severity)?'on':'idle'}'>${f.severity||'Info'}</span></div>`).join('');$('recentFindings').innerHTML=use.slice(0,6).map(f=>`<div class='row'><span>${f.title||f.name||'Finding'}</span><span class='pill'>new</span></div>`).join('')}
-function showRequests(){const t=target();const base=[['GET',`https://${t}/api/v1/users/me`],['GET',`https://${t}/api/v1/accounts`],['POST',`https://${t}/api/v1/auth/login`],['GET',`https://${t}/api/v1/invoices/12345`]];$('liveRequests').innerHTML=base.map((r,i)=>`<div class='row'><span>${r[0]} ${r[1]}</span><span>${i%3===0?403:200} · ${15+i*6}ms</span></div>`).join('');$('bReq').textContent=reqCount}
-function showAgents(){$('agents').innerHTML=agentList.map(a=>`<div class='row'><span>${a}</span><span class='pill ${a==='Metasploit Agent'?'idle':'on'}'>${a==='Metasploit Agent'?'Idle/manual':'Active'}</span></div>`).join('')}
-async function loadTools(){const r=await api('/api/tools');let rows=[];if(r.ok&&Array.isArray(r.data.tools)){rows=r.data.tools.map(t=>({name:t.name,status:t.installed?'installed':'missing'}));} else {rows=[{name:'httpx',status:'running'},{name:'nuclei',status:'idle'},{name:'msfconsole',status:'idle/manual'}]} $('tools').innerHTML=rows.slice(0,14).map(t=>`<div class='row'><span>${t.name}</span><span class='pill ${/installed|running/.test(t.status)?'on':'idle'}'>${t.status}</span></div>`).join('')}
-async function refresh(){renderMap();showRequests();showAgents();$('bProject').textContent=target();$('bScope').textContent=scope();const t=encodeURIComponent(target());const [tg,fd,ev]=await Promise.all([api('/api/targets'),api('/api/findings/'+t),api('/api/evidence/'+t)]);const findings=(fd.ok&&Array.isArray(fd.data.findings))?fd.data.findings:[];showFindings(findings);renderDonut([findings.filter(f=>/high/i.test(f.severity||'')).length||2,findings.filter(f=>/medium/i.test(f.severity||'')).length||3,findings.filter(f=>/low/i.test(f.severity||'')).length||2,findings.filter(f=>/info/i.test(f.severity||'')).length||1]);$('stTargets').textContent=tg.ok&&Array.isArray(tg.data.targets)?tg.data.targets.length:1;$('stFindings').textContent=findings.length||8;$('stEvidence').textContent=ev.ok&&Array.isArray(ev.data.files)?ev.data.files.length:12;$('stEndpoints').textContent=(findings.length*7)||56;$('stRisk').textContent=Math.min(100,30+(findings.length*5));$('bTargets').textContent=$('stTargets').textContent;await loadTools()}
-async function sendChat(){const m=$('chatMsg').value.trim();if(!m)return;bubble('u',m);$('chatMsg').value='';const r=await api('/api/chat','POST',{target:target(),scope:scope(),message:m,session_id:sessionId});if(!r.ok){bubble('a','Chat API unavailable.');return}const d=r.data||{};sessionId=d.session_id||sessionId;bubble('a',d.assistant_message||'Ready.');const need=!!d.confirmation_required||d.safety_level==='approval';$('confirmBtn').disabled=!need;$('approvalBadge').style.display=need?'inline-block':'none';act('Chat: '+(d.intent||'analysis'))}
-async function confirmAction(){if(!sessionId)return;const r=await api('/api/chat/confirm','POST',{session_id:sessionId,target:target(),scope:scope()});$('confirmBtn').disabled=true;$('approvalBadge').style.display='none';bubble('a',(r.data&&r.data.assistant_message)||'Approved.');act('Approval confirmed')}
-async function runRecon(){act('Start Recon requested');await api('/api/run/recon-pipeline','POST',{target:target(),scope:scope()});refresh()}
-async function importTraffic(){act('Import Traffic requested (approval if needed)');}
-async function runJs(){act('Run JS Intel requested');await api('/api/run/js-url','POST',{target:target(),scope:scope(),url:`https://${target()}/app.js`,ai_summary:false});refresh()}
-async function runApiMap(){act('Run API Map requested');}
-async function runNuclei(){act('Run Nuclei Safe requested');await api('/api/run/nuclei-safe','POST',{target:target(),scope:scope(),urls_file:`evidence/${target()}/recon/urls.txt`});refresh()}
-async function generateReport(){act('Generate Report requested (safe flow)')}
-setInterval(()=>$('clock').textContent=new Date().toLocaleTimeString(),1000);
-bubble('a','Legion online. Safe mode enabled. No out-of-scope testing.');act('Dashboard initialized');refresh();
+const $=id=>document.getElementById(id);let sessionId=null;let approvalId=null;const actions=['sendBtn','reconBtn','jsBtn','apiBtn','nucleiBtn','reportBtn'];
+$('nav').innerHTML=['Dashboard','Chat with Legion','Targets','Scope Manager','Recon','HTTP / Traffic','Agents','Findings','Evidence','Reports','Retest','Settings','Logs'].map(x=>`<button class='btn' style='width:100%;margin:3px 0;text-align:left'>${x}</button>`).join('');
+$('stats').innerHTML=[['Targets','stTargets'],['Endpoints','stEndpoints'],['Findings','stFindings'],['Risk Score','stRisk'],['Agents Online','stAgents'],['Evidence Items','stEvidence']].map(s=>`<div class='card'><div class='muted'>${s[0]}</div><div id='${s[1]}' style='font-size:24px'>0</div></div>`).join('');
+$('agents').innerHTML=['Scope Guard','Recon Agent','HTTP Probe Agent','JS Intelligence Agent','API Mapper Agent','Auth Diff Agent','IDOR Hunter Agent','Nuclei Safe Agent','Metasploit Agent','Race Condition Agent','Cloud & Secrets Agent','Evidence Collector','False Positive Killer','Risk Ranker Agent','Report Agent','Retest Agent'].map(a=>`<div class='row'><span>${a}</span><span class='pill'>${a==='Metasploit Agent'?'Idle/manual':'Active'}</span></div>`).join('');
+function currentTarget(){return $('target').value.trim()} function scope(){return $('scope').value.trim()||'scope.yaml'}
+function setTargetState(){const t=currentTarget();const on=!!t;actions.forEach(id=>$ (id).disabled=!on);$('targetState').textContent=on?`Active target: ${t}`:'No target selected';$('bProject').textContent=on?t:'No target selected';$('bScope').textContent=scope();if(!on){renderDemo();}}
+async function api(path,method='GET',body=null){const r=await fetch(path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):null});const txt=await r.text();let j={};try{j=JSON.parse(txt)}catch{j={raw:txt}}return{ok:r.ok,data:j}}
+function rowList(id,items,f){$(id).innerHTML=(items||[]).map(f).join('')}
+function renderDemo(){const demoFind=[{name:'Access control weakness',severity:'high'},{name:'Input validation issue',severity:'medium'}];rowList('attack_surface',['No target selected'],x=>`<div class='row'><span>${x}</span></div>`);rowList('top_findings',demoFind,x=>`<div class='row'><span>${x.name}</span><span class='pill'>${x.severity}</span></div>`);rowList('recent_findings',demoFind,x=>`<div class='row'><span>${x.name}</span><span class='pill'>new</span></div>`);rowList('live_requests',['/api/v1/users/me','/api/v1/accounts','/api/v1/auth/login','/api/v1/invoices/12345'],x=>`<div class='row'><span>${x}</span><span class='muted'>demo</span></div>`);rowList('tooling',[{name:'httpx',status:'idle'},{name:'nuclei',status:'idle'}],x=>`<div class='row'><span>${x.name}</span><span class='pill'>${x.status}</span></div>`);$('severity').textContent='Demo placeholders until target is selected.';rowList('activity',['Awaiting target selection'],x=>`<div class='row'><span>${x}</span></div>`);['stTargets','stEndpoints','stFindings','stRisk','stAgents','stEvidence','bTargets','bReq'].forEach(id=>$(id).textContent='0')}
+async function refresh(){const t=currentTarget();if(!t){renderDemo();return}const r=await api('/api/dashboard/'+encodeURIComponent(t));if(!r.ok){renderDemo();return}const d=r.data||{};const stats=d.stats||{};$('stTargets').textContent=stats.targets||0;$('stEndpoints').textContent=stats.endpoints||0;$('stFindings').textContent=stats.findings||0;$('stRisk').textContent=stats.risk_score||0;$('stAgents').textContent=stats.agents_online||0;$('stEvidence').textContent=stats.evidence_items||0;$('bTargets').textContent=stats.targets||0;
+ const surf=d.attack_surface||[];rowList('attack_surface',surf.length?surf:['No attack-surface data yet'],x=>`<div class='row'><span>${x}</span></div>`);
+ rowList('top_findings',(d.top_findings||[]).length?d.top_findings:[{name:'No findings yet',severity:'info'}],x=>`<div class='row'><span>${x.name||x}</span><span class='pill'>${x.severity||'info'}</span></div>`);
+ rowList('recent_findings',(d.recent_findings||[]).length?d.recent_findings:[{name:'No recent findings',severity:'info'}],x=>`<div class='row'><span>${x.name||x}</span><span class='pill'>${x.severity||'info'}</span></div>`);
+ rowList('live_requests',(d.live_requests||[]).length?d.live_requests:[{method:'GET',url:'/api/v1/users/me',status:'demo',time:'-'}],x=>`<div class='row'><span>${x.method} ${x.url}</span><span>${x.status} · ${x.time}</span></div>`);
+ rowList('tooling',(d.tooling_status||[]).length?d.tooling_status:[{name:'n/a',installed:false}],x=>`<div class='row'><span>${x.name}</span><span class='pill'>${x.installed?'installed':'missing'}</span></div>`);
+ const sev=d.findings_by_severity||{};$('severity').textContent=`Critical ${sev.critical||0}, High ${sev.high||0}, Medium ${sev.medium||0}, Low ${sev.low||0}, Info ${sev.info||0}`;
+ rowList('activity',(d.recent_activity||[]).length?d.recent_activity:[{event:'No recent activity yet'}],x=>`<div class='row'><span>${x.event||x}</span></div>`);
+ $('bReq').textContent=(d.live_requests||[]).length||0;}
+function chatBubble(role,msg){const d=document.createElement('div');d.className='msg '+(role==='u'?'u':'a');d.textContent=msg;$('chat').appendChild(d)}
+async function sendChat(){if(!currentTarget())return;const m=$('chatMsg').value.trim();if(!m)return;chatBubble('u',m);$('chatMsg').value='';const r=await api('/api/chat','POST',{target:currentTarget(),scope:scope(),message:m,session_id:sessionId});if(!r.ok){chatBubble('a','Chat failed');return}const d=r.data||{};sessionId=d.session_id||sessionId;approvalId=d.approval_id||null;const needs=!!approvalId;$('approvalBadge').style.display=needs?'block':'none';$('approveBtn').disabled=!needs;$('denyBtn').disabled=!needs;$('executeBtn').disabled=!needs;chatBubble('a',d.assistant_message||'Ready')}
+async function approvePending(){if(!approvalId)return;await api('/api/approvals/'+approvalId+'/approve','POST',{});chatBubble('a','Approval marked approved. You can now Execute Approved.')}
+async function denyPending(){if(!approvalId)return;await api('/api/approvals/'+approvalId+'/deny','POST',{});$('executeBtn').disabled=true;chatBubble('a','Approval denied. Execution blocked.')}
+async function executeApproved(){if(!sessionId)return;const r=await api('/api/chat/confirm','POST',{session_id:sessionId,target:currentTarget(),scope:scope()});chatBubble('a',(r.data&&r.data.assistant_message)||'Executed');$('executeBtn').disabled=true;$('approveBtn').disabled=true;$('denyBtn').disabled=true;$('approvalBadge').style.display='none';refresh()}
+async function runRecon(){await api('/api/run/recon-pipeline','POST',{target:currentTarget(),scope:scope()});refresh()}
+async function runJs(){const url=$('jsUrl').value.trim();if(!url){chatBubble('a','JS URL is required for Run JS Intel.');return}await api('/api/run/js-url','POST',{target:currentTarget(),scope:scope(),url,ai_summary:false});refresh()}
+async function runApiMap(){chatBubble('a','API Map workflow is available via chat tool routing.')}
+async function runNuclei(){let urls_file=$('urlsFile').value.trim();if(!urls_file){urls_file=`evidence/${currentTarget()}/recon/urls.txt`;const chk=await api('/api/dashboard/'+encodeURIComponent(currentTarget()));if(!chk.ok||!(chk.data.stats&&chk.data.stats.endpoints>0)){chatBubble('a','URLs file is required. Run recon first or provide URLs file path.');return}}await api('/api/run/nuclei-safe','POST',{target:currentTarget(),scope:scope(),urls_file});refresh()}
+async function generateReport(){const finding=$('findingName').value.trim();if(!finding){chatBubble('a','Finding name is required for report generation.');return}await api('/api/report-auto','POST',{target:currentTarget(),finding});chatBubble('a','Report generation requested.')}
+$('target').addEventListener('input',()=>{setTargetState();refresh()});$('scope').addEventListener('input',setTargetState);setInterval(()=>$('clock').textContent=new Date().toLocaleTimeString(),1000);setTargetState();refresh();
 </script>
-</body>
-</html>
+</body></html>
