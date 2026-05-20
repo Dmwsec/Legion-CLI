@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from core.scope import validate_scope
+from core.safe_paths import safe_join, safe_target_name
 from core.tools import get_tools_with_status
 from modules.graphql import graphql_check
 from modules.idor import generate_idor_plan
@@ -22,9 +23,20 @@ from web.agent_safety import safety_for
 from web.agent_tools import dispatch, missing_params, required_for
 from core.approvals import create_approval, list_approvals, approve as approve_request, deny as deny_request, get_approval
 
+EVIDENCE_ROOT = Path('evidence')
+
 app = FastAPI(title='Legion Dashboard API')
 static_dir = Path(__file__).parent / 'static'
 app.mount('/static', StaticFiles(directory=static_dir), name='static')
+
+
+def evidence_base(target: str) -> Path:
+    try:
+        return safe_join(EVIDENCE_ROOT, safe_target_name(target))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @app.get('/')
 def index(): return FileResponse(static_dir / 'index.html')
 @app.get('/api/health')
@@ -33,13 +45,13 @@ def health(): return {'status': 'ok'}
 def tools(): return {'tools': get_tools_with_status()}
 @app.get('/api/targets')
 def targets():
-    r = Path('evidence'); return {'targets': sorted([p.name for p in r.iterdir() if p.is_dir()]) if r.exists() else []}
+    r = EVIDENCE_ROOT; return {'targets': sorted([p.name for p in r.iterdir() if p.is_dir()]) if r.exists() else []}
 @app.get('/api/evidence/{target}')
 def evidence(target: str):
-    b = Path('evidence') / target; return {'files': sorted([str(p.relative_to(b)) for p in b.rglob('*') if p.is_file()]) if b.exists() else []}
+    b = evidence_base(target); return {'files': sorted([str(p.relative_to(b)) for p in b.rglob('*') if p.is_file()]) if b.exists() else []}
 @app.get('/api/findings/{target}')
 def findings(target: str):
-    f = Path('evidence') / target / 'ai-analysis'; return {'findings': sorted([p.name for p in f.glob('*.json')]) if f.exists() else []}
+    f = safe_join(evidence_base(target), 'ai-analysis'); return {'findings': sorted([p.name for p in f.glob('*.json')]) if f.exists() else []}
 
 @app.get('/api/agents/status')
 def agents_status():
@@ -82,22 +94,21 @@ def approvals_deny(approval_id: str):
 
 @app.get('/api/dashboard/{target}')
 def dashboard_summary(target: str):
-    base = Path('evidence') / target
+    base = evidence_base(target)
     files = [p for p in base.rglob('*') if p.is_file()] if base.exists() else []
     evidence_items = len(files)
 
-    urls_file = base / 'recon' / 'urls.txt'
+    urls_file = safe_join(safe_join(base, 'recon'), 'urls.txt')
     urls = []
     if urls_file.exists():
         try:
             urls = [ln.strip() for ln in urls_file.read_text(errors='ignore').splitlines() if ln.strip()]
-        except Exception:
+        except OSError:
             urls = []
 
-    ai_dir = base / 'ai-analysis'
+    ai_dir = safe_join(base, 'ai-analysis')
     finding_files = sorted(ai_dir.glob('*.json')) if ai_dir.exists() else []
     severity_counts = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
-    top_findings = []
     recent_findings = []
     for fp in finding_files:
         item = {'name': fp.name, 'severity': 'info'}
@@ -115,7 +126,7 @@ def dashboard_summary(target: str):
                 }
             elif isinstance(data, list):
                 item['name'] = fp.stem
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
         severity_counts[item['severity']] += 1
         recent_findings.append(item)
@@ -133,15 +144,16 @@ def dashboard_summary(target: str):
     attack_surface = urls[:50]
     for u in urls[:6]:
         live_requests.append({'method': 'GET', 'url': u, 'status': 200, 'time': '-'})
+    normalized_target = safe_target_name(target)
     if base.exists():
-        recent_activity.append({'event': f'Evidence directory found for {target}'})
+        recent_activity.append({'event': f'Evidence directory found for {normalized_target}'})
     if urls:
         recent_activity.append({'event': f'Loaded {len(urls)} recon URLs'})
     if finding_files:
         recent_activity.append({'event': f'Loaded {len(finding_files)} finding artifacts'})
 
     return {
-        'target': target,
+        'target': normalized_target,
         'scope': 'scope.yaml',
         'stats': {
             'targets': 1 if base.exists() else 0,
@@ -227,7 +239,7 @@ def chat(req: ChatRequest):
     if intent and intent != 'none' and safety == 'safe':
         result = dispatch(intent, params)
     elif confirm:
-        req = create_approval(
+        approval_req = create_approval(
             project='legion-dashboard',
             target=req.target,
             agent='chat',
@@ -236,7 +248,7 @@ def chat(req: ChatRequest):
             risk_level=safety,
             reason='Chat requested action requiring confirmation.',
         )
-        mem['pending_confirmation'] = {'tool': intent, 'params': params, 'preview': f"{intent} with {params}", 'approval_id': req['id']}
+        mem['pending_confirmation'] = {'tool': intent, 'params': params, 'preview': f"{intent} with {params}", 'approval_id': approval_req['id']}
 
     mem['messages'].append({'role': 'user', 'content': req.message})
     mem['last_results'] = result or mem.get('last_results', {})
