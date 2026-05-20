@@ -59,6 +59,11 @@ def test_msf_plan_execute_refuses_non_aux_scanner():
         msf.msf_plan_execute('exploit/linux/http/foo', 'example.com', 'abc')
 
 
+def test_msf_plan_execute_refuses_blocked_aux_scanner_term():
+    with pytest.raises(ValueError, match='msf-plan-execute blocked'):
+        msf.msf_plan_execute('auxiliary/scanner/http/shell_probe', 'example.com', 'abc')
+
+
 def test_run_msfconsole_uses_passed_command(monkeypatch):
     seen = {}
 

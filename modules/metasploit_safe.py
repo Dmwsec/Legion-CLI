@@ -150,11 +150,12 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 'scope.yaml') -> dict:
     m = _validate_module(module)
     t = _validate_target(target)
-    if not m:
-        raise ValueError('Module is required for msf-plan')
     low = m.lower()
     if not low.startswith('auxiliary/scanner/'):
         raise ValueError('Only auxiliary/scanner/* modules may execute in this flow. Use manual guidance for non-auxiliary modules.')
+    reason = _blocked_reason(m)
+    if reason:
+        raise ValueError(f'msf-plan-execute blocked. {reason}')
 
     if not (approval_id or '').strip():
         raise ValueError('approval_id is required for Metasploit execution')
