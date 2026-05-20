@@ -1,7 +1,9 @@
 from pathlib import Path
-from urllib.parse import urlparse
+
+from core.safe_paths import safe_filename, safe_join, safe_target_name
 
 
+EVIDENCE_ROOT = Path('evidence')
 EVIDENCE_SUBDIRS = [
     'requests',
     'responses',
@@ -12,22 +14,21 @@ EVIDENCE_SUBDIRS = [
 
 
 def normalize_target(target: str) -> str:
-    parsed = urlparse(target)
-    candidate = parsed.netloc or parsed.path or target
-    return candidate.replace(':', '_').strip('/').strip() or 'unknown-target'
+    return safe_target_name(target)
 
 
 def init_evidence_tree(target: str) -> Path:
     normalized = normalize_target(target)
-    root = Path('evidence') / normalized
+    root = safe_join(EVIDENCE_ROOT, normalized)
     root.mkdir(parents=True, exist_ok=True)
     for sub in EVIDENCE_SUBDIRS:
-        (root / sub).mkdir(parents=True, exist_ok=True)
+        safe_join(root, sub).mkdir(parents=True, exist_ok=True)
     return root
 
 
 def evidence_path(target: str, category: str, filename: str) -> Path:
-    root = init_evidence_tree(target)
     if category not in EVIDENCE_SUBDIRS:
         raise ValueError(f'Unknown evidence category: {category}')
-    return root / category / filename
+    root = init_evidence_tree(target)
+    category_dir = safe_join(root, category)
+    return safe_join(category_dir, safe_filename(filename))
