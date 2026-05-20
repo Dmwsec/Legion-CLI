@@ -18,3 +18,12 @@ def test_chat_confirm_blocks_manual_tool(monkeypatch):
         chat_confirm(ChatConfirmRequest(session_id='s1'))
 
     assert exc.value.status_code == 403
+
+
+def test_chat_confirm_unknown_tool_is_blocked(monkeypatch):
+    monkeypatch.setattr('web.app.load_session', lambda sid: ('s1', {'pending_confirmation': {'tool': 'unknown_tool', 'params': {}, 'approval_id': None}}))
+
+    with pytest.raises(HTTPException) as exc:
+        chat_confirm(ChatConfirmRequest(session_id='s1'))
+
+    assert exc.value.status_code == 403

@@ -274,7 +274,10 @@ def chat_confirm(req: ChatConfirmRequest):
             return {'assistant_message': 'Approval request not found.', 'result': None, 'approval_id': approval_id}
         if a.get('status') != 'approved':
             return {'assistant_message': f'Approval {approval_id} is {a.get("status", "pending")}. Action not executed.', 'result': None, 'approval_id': approval_id}
-    result = dispatch(pending['tool'], pending['params'])
+    try:
+        result = dispatch(pending['tool'], pending['params'])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     mem['pending_confirmation'] = None
     mem['last_results'] = result
     save_session(sid, mem)

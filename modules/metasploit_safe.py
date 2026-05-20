@@ -16,6 +16,7 @@ BLOCKED_TERMS = [
 SAFE_EXECUTABLE_PREFIXES = ('auxiliary/scanner/',)
 SAFE_MODULE_RE = re.compile(r'^[A-Za-z0-9_./-]+$')
 SAFE_QUERY_RE = re.compile(r'^[A-Za-z0-9_.:/ -]{1,120}$')
+SAFE_TARGET_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,253}$')
 
 
 def _safe_target_dir(target: str) -> str:
@@ -54,6 +55,15 @@ def _validate_query(query: str) -> str:
     return q
 
 
+def _validate_target(target: str) -> str:
+    t = (target or '').strip()
+    if not t:
+        raise ValueError('Target is required')
+    if not SAFE_TARGET_RE.match(t):
+        raise ValueError('Invalid target')
+    return t
+
+
 def _run_msfconsole(command: str) -> dict:
     proc = subprocess.run(
         ['msfconsole', '-q', '-x', command],
@@ -90,6 +100,7 @@ def msf_info(module: str) -> dict:
 
 def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
     m = _validate_module(module)
+    t = _validate_target(target)
     low = m.lower()
     blocked_reason = _blocked_reason(m)
     aux_scanner = low.startswith(SAFE_EXECUTABLE_PREFIXES)
@@ -97,7 +108,7 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
     plan = {
         'status': 'planned',
-        'target': target,
+        'target': t,
         'scope': scope,
         'module': m,
         'approval_required': executable_with_approval,
@@ -117,10 +128,10 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
     elif executable_with_approval:
         approval = create_approval(
             project='legion-cli',
-            target=target,
+            target=t,
             agent='cli',
             action='metasploit-plan-execute',
-            command_preview=f'msfconsole -q -x "use {m}; setg RHOSTS {target}; run; exit"',
+            command_preview=f'msfconsole -q -x "use {m}; setg RHOSTS {t}; run; exit"',
             risk_level='manual',
             reason=f'Metasploit execution approval required for module: {m}',
         )
@@ -128,7 +139,7 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
         plan['status'] = 'pending_approval'
         plan['message'] = 'Approval required before any Metasploit module execution.'
 
-    out_dir = Path('evidence') / target / 'ai-analysis'
+    out_dir = Path('evidence') / _safe_target_dir(t) / 'ai-analysis'
     out_dir.mkdir(parents=True, exist_ok=True)
     safe_mod = re.sub(r'[^a-zA-Z0-9._-]+', '_', m).strip('_') or 'module'
     out_file = out_dir / f'metasploit_plan_{safe_mod}.json'
@@ -138,12 +149,9 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
 def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 'scope.yaml') -> dict:
     m = _validate_module(module)
-    t = (target or '').strip()
+    t = _validate_target(target)
     if not m:
         raise ValueError('Module is required for msf-plan')
-    if not t:
-        raise ValueError('Target is required for msf-plan')
-
     low = m.lower()
     if not low.startswith('auxiliary/scanner/'):
         raise ValueError('Only auxiliary/scanner/* modules may execute in this flow. Use manual guidance for non-auxiliary modules.')

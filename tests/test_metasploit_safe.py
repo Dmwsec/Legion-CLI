@@ -44,6 +44,15 @@ def test_msf_plan_exploit_returns_manual_guidance(monkeypatch, tmp_path):
     assert 'cannot auto-execute' in out['message']
     assert called['v'] is False
 
+    def fake_approval(**kwargs):
+        called['v'] = True
+        return {'id': 'should-not'}
+
+def test_msf_plan_rejects_unsafe_target(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match='Invalid target'):
+        msf.msf_plan('auxiliary/scanner/http/title', 'example.com;rm -rf /')
+
 
 def test_msf_plan_execute_refuses_non_aux_scanner():
     with pytest.raises(ValueError, match=r'Only auxiliary/scanner/\* modules may execute'):
