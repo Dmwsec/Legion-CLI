@@ -1,33 +1,51 @@
-from pathlib import Path
 import json
-from fastapi import FastAPI, HTTPException
+import os
+import secrets
+from pathlib import Path
+
+from fastapi import Depends, Header, HTTPException, FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from core.scope import validate_scope
+
+from core.approvals import create_approval, list_approvals, approve as approve_request, deny as deny_request, get_approval
+from core.report import create_report_from_evidence
 from core.safe_paths import safe_join, safe_target_name
+from core.scope import validate_scope
 from core.tools import get_tools_with_status
+from modules.finding_ranker import rank_findings
 from modules.graphql import graphql_check
 from modules.idor import generate_idor_plan
 from modules.js_analyzer import analyze_js_url
 from modules.nuclei_safe import run_nuclei_safe
 from modules.oauth import oauth_check
 from modules.recon_pipeline import run_recon_pipeline
-from core.report import create_report_from_evidence
-from modules.scope_builder import create_scope_from_text, use_scope, list_scopes
 from modules.replay_engine import replay_diff
-from modules.finding_ranker import rank_findings
+from modules.scope_builder import create_scope_from_text, list_scopes, use_scope
 from web.agent import model_parse
-from web.schemas import *
 from web.agent_memory import load_session, save_session
 from web.agent_safety import safety_for
 from web.agent_tools import dispatch, missing_params, required_for
-from core.approvals import create_approval, list_approvals, approve as approve_request, deny as deny_request, get_approval
+from web.schemas import *
 
 EVIDENCE_ROOT = Path('evidence')
 
 app = FastAPI(title='Legion Dashboard API')
 static_dir = Path(__file__).parent / 'static'
 app.mount('/static', StaticFiles(directory=static_dir), name='static')
+
+
+def require_dashboard_token(x_legion_token: str | None = Header(default=None)) -> None:
+    """Protect dashboard actions when LEGION_DASHBOARD_TOKEN is configured.
+
+    Local development stays easy when the env var is unset. When set, clients must
+    send X-Legion-Token with the exact value before running action endpoints.
+    """
+    expected = os.getenv('LEGION_DASHBOARD_TOKEN', '').strip()
+    if not expected:
+        return
+    provided = (x_legion_token or '').strip()
+    if not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail='Missing or invalid X-Legion-Token')
 
 
 def evidence_base(target: str) -> Path:
@@ -75,18 +93,18 @@ def agents_status():
     ]
 
 @app.get('/api/approvals')
-def approvals():
+def approvals(_: None = Depends(require_dashboard_token)):
     return {'approvals': list_approvals()}
 
 @app.post('/api/approvals/{approval_id}/approve')
-def approvals_approve(approval_id: str):
+def approvals_approve(approval_id: str, _: None = Depends(require_dashboard_token)):
     try:
         return approve_request(approval_id)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 @app.post('/api/approvals/{approval_id}/deny')
-def approvals_deny(approval_id: str):
+def approvals_deny(approval_id: str, _: None = Depends(require_dashboard_token)):
     try:
         return deny_request(approval_id)
     except FileNotFoundError as e:
@@ -177,27 +195,27 @@ def _v(target, scope):
     try: validate_scope(target, scope)
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
 @app.post('/api/run/recon-pipeline')
-def run_recon(req: TargetRequest): _v(req.target, req.scope); return run_recon_pipeline(req.target)
+def run_recon(req: TargetRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return run_recon_pipeline(req.target)
 @app.post('/api/run/js-url')
-def run_js(req: JSUrlRequest): _v(req.target, req.scope); return analyze_js_url(req.target, req.url, ai_summary=req.ai_summary)
+def run_js(req: JSUrlRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return analyze_js_url(req.target, req.url, ai_summary=req.ai_summary)
 @app.post('/api/run/nuclei-safe')
-def run_ns(req: NucleiRequest): _v(req.target, req.scope); return run_nuclei_safe(req.target, req.urls_file)
+def run_ns(req: NucleiRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return run_nuclei_safe(req.target, req.urls_file)
 @app.post('/api/run/graphql-analyze')
-def run_gql(req: GraphQLRequest): _v(req.target, req.scope); return graphql_check(req.endpoint, req.target)
+def run_gql(req: GraphQLRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return graphql_check(req.endpoint, req.target)
 @app.post('/api/run/oauth-check')
-def run_o(req: OAuthRequest): _v(req.target, req.scope); return oauth_check(req.target, req.url)
+def run_o(req: OAuthRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return oauth_check(req.target, req.url)
 @app.post('/api/run/idor-plan')
-def run_id(req: IDORPlanRequest): _v(req.target, req.scope); return generate_idor_plan(req.target, req.replay_file)
+def run_id(req: IDORPlanRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return generate_idor_plan(req.target, req.replay_file)
 @app.post('/api/run/replay-diff')
-def run_replay_diff(req: ReplayDiffRequest): _v(req.target, req.scope); return replay_diff(req.target, req.request_file, req.session_a, req.session_b)
+def run_replay_diff(req: ReplayDiffRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return replay_diff(req.target, req.request_file, req.session_a, req.session_b)
 @app.post('/api/run/rank-findings')
-def run_rank(req: RankRequest): _v(req.target, req.scope); return rank_findings(req.target)
+def run_rank(req: RankRequest, _: None = Depends(require_dashboard_token)): _v(req.target, req.scope); return rank_findings(req.target)
 @app.post('/api/report-auto')
-def report_auto(req: ReportRequest): return {'report': create_report_from_evidence(req.finding, req.target)}
+def report_auto(req: ReportRequest, _: None = Depends(require_dashboard_token)): return {'report': create_report_from_evidence(req.finding, req.target)}
 @app.post('/api/scope/from-chat')
-def scope_from_chat(req: ScopeFromChatRequest): return create_scope_from_text(req.program, req.message, save=True, use_active=req.use_active)
+def scope_from_chat(req: ScopeFromChatRequest, _: None = Depends(require_dashboard_token)): return create_scope_from_text(req.program, req.message, save=True, use_active=req.use_active)
 @app.post('/api/scope/use')
-def scope_use(req: ScopeUseRequest):
+def scope_use(req: ScopeUseRequest, _: None = Depends(require_dashboard_token)):
     path = use_scope(req.program)
     return {'active_scope': path, 'program': req.program}
 @app.get('/api/scope/list')
@@ -205,7 +223,7 @@ def scope_list():
     return {'scopes': list_scopes(), 'active_scope': 'scope.yaml'}
 
 @app.post('/api/chat')
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, _: None = Depends(require_dashboard_token)):
     _v(req.target, req.scope)
     sid, mem = load_session(req.session_id)
     mem['current_target'] = req.target
@@ -267,7 +285,7 @@ def chat(req: ChatRequest):
     }
 
 @app.post('/api/chat/confirm')
-def chat_confirm(req: ChatConfirmRequest):
+def chat_confirm(req: ChatConfirmRequest, _: None = Depends(require_dashboard_token)):
     sid, mem = load_session(req.session_id)
     pending = mem.get('pending_confirmation')
     if not pending:
