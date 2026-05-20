@@ -44,6 +44,9 @@ def test_msf_plan_exploit_returns_manual_guidance(monkeypatch, tmp_path):
     assert 'cannot auto-execute' in out['message']
     assert called['v'] is False
 
+    def fake_approval(**kwargs):
+        called['v'] = True
+        return {'id': 'should-not'}
 
 def test_msf_plan_rejects_unsafe_target(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
