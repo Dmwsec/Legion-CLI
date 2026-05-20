@@ -54,7 +54,10 @@ def list_findings(target: str):
 
 
 def dispatch(tool: str, params: dict):
-    return {
+    if tool not in REQUIRED_PARAMS:
+        raise ValueError(f'Unknown tool: {tool}')
+
+    handlers = {
         'get_tool_status': lambda: get_tools_with_status(),
         'list_targets': lambda: list_targets(),
         'list_evidence': lambda: list_evidence(params['target']),
@@ -69,4 +72,9 @@ def dispatch(tool: str, params: dict):
         'generate_idor_plan': lambda: generate_idor_plan(params['target'], params['replay_file']),
         'generate_report_from_evidence': lambda: {'report': create_report_from_evidence(params['finding'], params['target'])},
         'traffic_summary': lambda: traffic_summary(params['target']),
-    }[tool]()
+    }
+
+    handler = handlers.get(tool)
+    if handler is None:
+        raise ValueError(f'Unknown tool: {tool}')
+    return handler()

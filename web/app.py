@@ -261,13 +261,23 @@ def chat_confirm(req: ChatConfirmRequest):
     if not pending:
         return {'assistant_message':'No pending confirmation.', 'result':None}
     approval_id = pending.get('approval_id')
+    tool_call = {'tool': pending.get('tool', ''), 'params': pending.get('params', {})}
+    safety = safety_for(tool_call)
+    if safety == 'manual':
+        raise HTTPException(status_code=403, detail='Manual-risk tools cannot execute from chat confirmation.')
+    if safety not in {'safe', 'approval'}:
+        raise HTTPException(status_code=403, detail='Unknown or blocked tool safety level.')
+
     if approval_id:
         a = get_approval(approval_id)
         if not a:
             return {'assistant_message': 'Approval request not found.', 'result': None, 'approval_id': approval_id}
         if a.get('status') != 'approved':
             return {'assistant_message': f'Approval {approval_id} is {a.get("status", "pending")}. Action not executed.', 'result': None, 'approval_id': approval_id}
-    result = dispatch(pending['tool'], pending['params'])
+    try:
+        result = dispatch(pending['tool'], pending['params'])
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     mem['pending_confirmation'] = None
     mem['last_results'] = result
     save_session(sid, mem)

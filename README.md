@@ -19,7 +19,7 @@ It helps you:
 
 ```text
 Scope Guard
-  -> Tool Registry (50 tools + installed status)
+  -> Tool Registry (50+ tools + installed status)
   -> Recon / Traffic / JS / OAuth / GraphQL / IDOR Modules
   -> AI Reasoning Layer (optional)
   -> Human Approval Gate
@@ -86,7 +86,7 @@ Tables include:
 python3 main.py tools
 ```
 
-Shows all 50 tools with category, risk level, and installed/missing status.
+Shows all 50+ tools with category, risk level, and installed/missing status.
 
 ### Recon
 
@@ -283,3 +283,11 @@ Use the Scope Builder in dashboard or CLI to extract scope rules from pasted pro
 The extracted file is saved as `scopes/<program>.yaml`, and `scope-use` copies it to `scope.yaml` for active validation.
 
 made by brownboi-tech/Dmwsec
+
+
+### Metasploit safety restrictions
+
+- `msf-search` / `msf-info` are allowed only for safe, validated queries/modules.
+- Only `auxiliary/scanner/*` modules are eligible for execution.
+- `exploit/*`, `payload/*`, `post/*`, and blocked terms (like `meterpreter`/`shell`) are manual-guidance only.
+- Any Metasploit execution requires explicit human approval.
