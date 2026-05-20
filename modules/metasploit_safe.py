@@ -5,8 +5,10 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from core.approvals import create_approval, get_approval
+from core.safe_paths import safe_target_name
 
 
 BLOCKED_TERMS = [
@@ -20,8 +22,28 @@ SAFE_TARGET_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,253}$')
 
 
 def _safe_target_dir(target: str) -> str:
-    safe = re.sub(r'[^A-Za-z0-9._-]+', '_', (target or '').strip()).strip('._-')
-    return safe[:120] or 'unknown-target'
+    return safe_target_name(target)
+
+
+def _normalize_target_host(target: str) -> str:
+    raw = (target or '').strip()
+    if not raw:
+        raise ValueError('Target is required')
+
+    parsed = urlparse(raw)
+    candidate = parsed.netloc or parsed.path or raw
+    candidate = candidate.split('/')[0].split('?')[0].split('#')[0]
+    candidate = candidate.rsplit('@', 1)[-1]
+
+    if candidate.startswith('[') and ']' in candidate:
+        host = candidate[1:candidate.index(']')]
+    else:
+        host = candidate.split(':', 1)[0]
+
+    host = host.strip().strip('.')
+    if not host:
+        raise ValueError('Target host is required')
+    return host
 
 
 def _blocked_reason(module_or_query: str) -> str | None:
@@ -41,7 +63,7 @@ def _validate_module(module: str) -> str:
     m = (module or '').strip()
     if not m:
         raise ValueError('Module is required')
-    if not SAFE_MODULE_RE.match(m):
+    if not SAFE_MODULE_RE.fullmatch(m):
         raise ValueError('Invalid module name')
     return m
 
@@ -50,21 +72,21 @@ def _validate_query(query: str) -> str:
     q = (query or '').strip()
     if not q:
         raise ValueError('Query is required')
-    if not SAFE_QUERY_RE.match(q):
+    if not SAFE_QUERY_RE.fullmatch(q):
         raise ValueError('Invalid query')
     return q
 
 
 def _validate_target(target: str) -> str:
-    t = (target or '').strip()
-    if not t:
-        raise ValueError('Target is required')
-    if not SAFE_TARGET_RE.match(t):
+    t = _normalize_target_host(target)
+    if not SAFE_TARGET_RE.fullmatch(t):
         raise ValueError('Invalid target')
     return t
 
 
 def _run_msfconsole(command: str) -> dict:
+    if any(ch in command for ch in ['\n', '\r', '\x00']):
+        raise ValueError('Unsafe msfconsole command')
     proc = subprocess.run(
         ['msfconsole', '-q', '-x', command],
         text=True,
@@ -86,7 +108,7 @@ def msf_search(query: str) -> dict:
     if reason:
         raise ValueError(f'msf-search blocked. {reason}')
     _ensure_msfconsole_installed()
-    return _run_msfconsole(f'search {q}')
+    return _run_msfconsole(f'search {q}; exit')
 
 
 def msf_info(module: str) -> dict:
@@ -95,7 +117,7 @@ def msf_info(module: str) -> dict:
     if reason:
         raise ValueError(f'msf-info blocked. {reason}')
     _ensure_msfconsole_installed()
-    return _run_msfconsole(f'info {m}')
+    return _run_msfconsole(f'info {m}; exit')
 
 
 def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
@@ -147,11 +169,12 @@ def msf_plan(module: str, target: str, scope: str = 'scope.yaml') -> dict:
 
     return {**plan, 'plan_file': str(out_file)}
 
+
 def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 'scope.yaml') -> dict:
     m = _validate_module(module)
     t = _validate_target(target)
     low = m.lower()
-    if not low.startswith('auxiliary/scanner/'):
+    if not low.startswith(SAFE_EXECUTABLE_PREFIXES):
         raise ValueError('Only auxiliary/scanner/* modules may execute in this flow. Use manual guidance for non-auxiliary modules.')
     reason = _blocked_reason(m)
     if reason:
@@ -167,7 +190,7 @@ def msf_plan_execute(module: str, target: str, approval_id: str, scope: str = 's
         raise ValueError(f'Approval {approval_id} status is {rec.get("status")}; expected approved')
 
     _ensure_msfconsole_installed()
-    cmd = f'use {m}; setg RHOSTS {t}; run'
+    cmd = f'use {m}; setg RHOSTS {t}; run; exit'
     out = _run_msfconsole(cmd)
     out.update({'status': 'executed', 'target': t, 'scope': scope, 'module': m, 'approval_id': approval_id})
     return out
